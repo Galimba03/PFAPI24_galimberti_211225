@@ -86,53 +86,140 @@ int main() {
     char recipe_name[MAX_RECIPE_NAME];
     char ingredient_name[MAX_INGREDIENT_NAME];
     int ingredient_quantity;
+    int order_quantity;
+    int ingredient_expiring;
     int command_value;
     int day;
     while (fgets(line, sizeof(line), file)) {
+        // Sostituzione carattere '\n' con terminatore stringa '\0' -> agevole per tokenizzazione
+        size_t len = strlen(line);
+        if (len > 0 && line[len-1] == '\n') {
+            line[len-1] = '\0';
+        }
         command_value = process_command(line);
         if(command_value == -1) {
             fclose(file);
             return 1;
         }
-        switch(command_value){
+        // Tokenizzazione del comando -> da fare per forza
+        token = strtok(line, " ");
+        switch(command_value) {
             case 0: {
                 // aggiungi_ricetta
-                // printf("%d | aggiungi_ricetta -> ", day);
-                token = strtok(line, " ");
+                // lettura ricetta + ingrediente + quantità OBBLIGATORI
                 token = strtok(NULL, " ");
-                sscanf(token, "%s", recipe_name);
-                printf("Ricetta: %s\n\t", recipe_name);
+                if(token == NULL) {
+                    printf("Ricetta mancante\n\tErrore riscontrato al giorno %d\n", day);
+                    return 1;
+                }
+                strcpy(recipe_name, token);
+                token = strtok(NULL, " ");
+                if(token == NULL) {
+                    printf("Ingrediente mancante\n\tErrore riscontrato al giorno %d\n", day);
+                    return 1;
+                }
+                strcpy(ingredient_name, token);
+
+                token = strtok(NULL, " ");
+                if(token == NULL) {
+                    printf("Quantità ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                    return 1;
+                }
+                sscanf(token, "%d", &ingredient_quantity);
+
+                // lettura ricetta + ingrediente + quantità FACOLTATIVI
+                while(token != NULL){
+                    token = strtok(NULL, " ");
+                    if(token == NULL) {
+                        break;
+                    }
+                    strcpy(ingredient_name, token);
+
+                    token = strtok(NULL, " ");
+                    if(token == NULL) {
+                        printf("Quantità ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                        return 1;
+                    }
+                    sscanf(token, "%d", &ingredient_quantity);
+                }
+
+                break;
+            }
+            case 1: {
+                // rimuovi_ricetta
+                // Lettura della ricetta da rimuovere
+                token = strtok(NULL, " ");
+                if(token == NULL){
+                    printf("Mancante ricetta da rimuovere\n\tErrore riscontrato al giorno %d\n", day);
+                    return 1;
+                }
+                strcpy(recipe_name, token);
+
+                break;
+            }
+            case 2: {
+                // ordine
+                // Lettura della ricetta + quantità da ordinare
+                token = strtok(NULL, " ");
+                if(token == NULL){
+                    printf("Mancante ricetta da ordinare\n\tErrore riscontrato al giorno %d\n", day);
+                    return 1;
+                }
+                strcpy(recipe_name, token);
+                token = strtok(NULL, " ");
+                if(token == NULL){
+                    printf("Mancante quantità della ricetta '%s'\n\tErrore riscontrato al giorno %d\n", recipe_name, day);
+                    return 1;
+                }
+                sscanf(token, "%d", &order_quantity);
+
+                break;
+            }
+            case 3: {
+                // rifornimento
+                // Lettura ingrediente + quantità + scadenza OBBLIGATORIE
+                token = strtok(NULL, " ");
+                if(token == NULL) {
+                    printf("Ingrediente da rifornire mancante\n\tErrore riscontrato al giorno %d\n", day);
+                    return 1;
+                }
+                strcpy(ingredient_name, token);
+                token = strtok(NULL, " ");
+                if(token == NULL) {
+                    printf("Quantità rifornita di '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                    return 1;
+                }
+                sscanf(token, "%d", &ingredient_quantity);
+                token = strtok(NULL, " ");
+                if(token == NULL) {
+                    printf("Scadenza ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                    return 1;
+                }
+                sscanf(token, "%d", &ingredient_expiring);
+                printf("%s: %d - %d\n", ingredient_name, ingredient_quantity, ingredient_expiring);
+
+                // Lettura ingrediente + quantità + scadenza FACOLTATIVE
                 while(token != NULL){
                     token = strtok(NULL, " ");
                     if(token == NULL){
                         break;
                     }
                     strcpy(ingredient_name, token);
-                    printf("%s + ", ingredient_name);
-
                     token = strtok(NULL, " ");
-                    if(token == NULL){
-                        break;
+                    if(token == NULL) {
+                        printf("Quantità rifornita di '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                        return 1;
                     }
                     sscanf(token, "%d", &ingredient_quantity);
-                    printf("%d | ", ingredient_quantity);
+                    token = strtok(NULL, " ");
+                    if(token == NULL) {
+                        printf("Scadenza ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                        return 1;
+                    }
+                    sscanf(token, "%d", &ingredient_expiring);
+                    printf("%s: %d - %d\n", ingredient_name, ingredient_quantity, ingredient_expiring);
                 }
-                printf("\n");
-                break;
-            }
-            case 1: {
-                // rimuovi_ricetta
-                printf("%d | rimuovi_ricetta\n", day);
-                break;
-            }
-            case 2: {
-                // ordine
-                printf("%d | ordine\n", day);
-                break;
-            }
-            case 3: {
-                // rifornimento
-                printf("%d | rifornimento\n", day);
+                
                 break;
             }
         }
