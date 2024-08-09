@@ -3,32 +3,39 @@
 // #include <string.h>
 #include <libc.h>
 
-#define MAX_LINE_LENGTH 512
+#define MAX_LINE_LENGTH 1024
 #define MAX_COMMAND_LENGTH 20
-#define MAX_RECIPE_NAME 50
-#define MAX_INGREDIENT_NAME 50
+#define MAX_RECIPE_NAME 255
+#define MAX_INGREDIENT_NAME 255
 #define MAX_INGREDIENTS 10
+#define TABLE_SIZE 25
 
 typedef struct {
-    char ingredient[MAX_INGREDIENT_NAME];
+    char name[MAX_INGREDIENT_NAME];
     int quantity;
-} Ingredient;
+} Ingredient_t;
+
+typedef struct recipe{
+    char name[MAX_RECIPE_NAME];
+    Ingredient_t ingredients[20];
+    int num_ingredients;
+    struct recipe* next;
+} Recipe_t;
 
 typedef struct {
-    char name[MAX_RECIPE_NAME];
-    Ingredient ingredients[20];
-    int num_ingredients;
-} Recipe;
+    Recipe_t recipe;
+    int quantity;
+} Order_t;
 
-/**
- *  Funzione che ritorna un valore in base al tipo di informazione letta dal file 
- *  Values:
- *          -1 -> error
- *          0 -> aggiungi_ricetta
- *          1 -> rimuovi_ricetta
- *          2 -> ordine
- *          3 -> rifornimento
- */
+/*
+    Funzione che ritorna un valore in base al tipo di informazione letta dal file 
+    Values:
+        -1 -> error
+        0 -> aggiungi_ricetta
+        1 -> rimuovi_ricetta
+        2 -> ordine
+        3 -> rifornimento
+*/
 int process_command(char *line) {
     char command[MAX_COMMAND_LENGTH];
     int code;
@@ -38,7 +45,6 @@ int process_command(char *line) {
         printf("Errore nella lettura del comando\n");
         return -1;
     }
-    // printf("%s\n", command);
 
     if(strcmp(command, "aggiungi_ricetta") == 0) {
         return 0;
@@ -51,6 +57,102 @@ int process_command(char *line) {
     }
 
     return -1; 
+}
+
+// FUNZIONI PER LA HASH TABLE
+Recipe_t* hash_table_recipe[TABLE_SIZE];
+/*
+    Funzione che crea l'indice della tabella di hash in cui andra' ad essere inserito il valore
+    Returns:
+        unsigned int = indice in cui verra' posizionato il valore nella tabella di hash
+*/
+unsigned int hash_function(char* name) {
+    int length = strnlen(name, MAX_RECIPE_NAME);
+    unsigned int hash_value = 0;
+    for(int i = 0; i < length; i++) {
+        hash_value += name[i];
+        hash_value = hash_value % TABLE_SIZE;
+        //    TODO:
+        //        cercare eventuali metodi per rendere ancora più randomica la funzione di hash
+        // hash_value = (hash_value * name[i]) % TABLE_SIZE;
+    }
+    return hash_value;
+}
+
+/*
+    Funzione che inizializza la tabella di hash
+*/
+void init_hash_table_recipe() {
+    for(int i=0; i < TABLE_SIZE; i++){
+        hash_table_recipe[i] = NULL;
+    }
+}
+
+/*
+    Funzione che inizializza la funzione hash
+    Returns:
+        0 -> no errors
+        1 -> errors
+*/
+//    TODO:
+//        cercare eventualmente se la funzione di hashing con remapping è migliore rispetto a questa
+int insert_hash_table_recipe(Recipe_t* recipe) {
+    if(recipe == NULL) {
+        return 1;
+    }
+
+    int index = hash_function(recipe->name);
+    recipe->next = hash_table_recipe[index];
+    hash_table_recipe[index] = recipe;
+    return 0;
+}
+
+Recipe_t* search_hash_table_recipe(char* recipe_name) {
+    int index = hash_function(recipe_name);
+    Recipe_t* temp = hash_table_recipe[index];
+    while(temp != NULL && strncmp(temp->name, recipe_name, MAX_RECIPE_NAME) != 0) {
+        temp = temp->next;
+    }
+    return temp;
+}
+
+Recipe_t* delete_hash_table_recipe(char* recipe_name) {
+    int index = hash_function(recipe_name);
+    Recipe_t* temp = hash_table_recipe[index];
+    Recipe_t* prev = NULL;
+    while(temp != NULL && strncmp(temp->name, recipe_name, MAX_RECIPE_NAME) != 0) {
+        prev = temp; 
+        temp = temp->next;
+    }
+    // in fondo alla lista
+    if(temp == NULL) {
+        return NULL;
+    }
+    // eliminazione testa della lista
+    if(prev == NULL){
+        hash_table_recipe[index] = temp->next;
+    } else{
+        prev->next = temp->next;
+    }
+    return temp;
+}
+
+/*
+    Funzione di debugging che stampa la tabella di hash
+*/
+void print_hash_table_recipe() {
+    printf("START\n");
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        printf("Index %d: ", i);
+        Recipe_t* temp = hash_table_recipe[i];
+        while (temp != NULL) {
+            printf("%s -> ", temp->name);
+            temp = temp->next;
+        }
+        printf("NULL\n");
+    }
+    printf("END\n");
+    return;
 }
 
 int main() {
@@ -76,7 +178,6 @@ int main() {
         // Consumo resto della linea
         while((extra = fgetc(file) != '\n') && extra != EOF);
     }
-    // printf("%d - %d\n", arrival, space);
 
     /*
         Lettura riga per riga del file | Lettura delle operazioni da fare di giorno in giorno
@@ -90,6 +191,13 @@ int main() {
     int ingredient_expiring;
     int command_value;
     int day;
+
+    //    TODO:
+    //        Vedere se 512 basta come dimensione massima lineea altrimenti incrementarla
+    //        Inoltre provare a vedere se esistono metodi migliori senza usar le linee ma prendendo parola per parola
+    //        -> soluzione possibile su GT
+    
+    init_hash_table_recipe();
     while (fgets(line, sizeof(line), file)) {
         // Sostituzione carattere '\n' con terminatore stringa '\0' -> agevole per tokenizzazione
         size_t len = strlen(line);
@@ -101,46 +209,69 @@ int main() {
             fclose(file);
             return 1;
         }
-        // Tokenizzazione del comando -> da fare per forza
+        // Tokenizzazione del comando -> da fare per forza causa comando
         token = strtok(line, " ");
         switch(command_value) {
             case 0: {
                 // aggiungi_ricetta
+                Recipe_t *new_recipe = (Recipe_t*)malloc(sizeof(Recipe_t));
+                if (new_recipe == NULL) {
+                    printf("Errore di allocazione della memoria\n");
+                    return 1;
+                }
+
+                int ingredient_counter = 0;
+
                 // lettura ricetta + ingrediente + quantità OBBLIGATORI
                 token = strtok(NULL, " ");
                 if(token == NULL) {
                     printf("Ricetta mancante\n\tErrore riscontrato al giorno %d\n", day);
+                    free(new_recipe);
                     return 1;
                 }
-                strcpy(recipe_name, token);
+                strcpy(new_recipe->name, token);
+
                 token = strtok(NULL, " ");
                 if(token == NULL) {
                     printf("Ingrediente mancante\n\tErrore riscontrato al giorno %d\n", day);
+                    free(new_recipe);
                     return 1;
                 }
-                strcpy(ingredient_name, token);
+                strcpy(new_recipe->ingredients[ingredient_counter].name, token);
 
                 token = strtok(NULL, " ");
                 if(token == NULL) {
-                    printf("Quantità ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                    printf("Quantità ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", new_recipe->ingredients[ingredient_counter].name, day);
+                    free(new_recipe);
                     return 1;
                 }
-                sscanf(token, "%d", &ingredient_quantity);
+                sscanf(token, "%d", &new_recipe->ingredients[ingredient_counter].quantity);
 
-                // lettura ricetta + ingrediente + quantità FACOLTATIVI
+                // lettura ingrediente + quantità FACOLTATIVI
+                ingredient_counter++;
                 while(token != NULL){
                     token = strtok(NULL, " ");
                     if(token == NULL) {
                         break;
                     }
-                    strcpy(ingredient_name, token);
+                    strcpy(new_recipe->ingredients[ingredient_counter].name, token);
 
                     token = strtok(NULL, " ");
                     if(token == NULL) {
-                        printf("Quantità ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", ingredient_name, day);
+                        printf("Quantità ingrediente '%s' mancante\n\tErrore riscontrato al giorno %d\n", new_recipe->ingredients[ingredient_counter].name, day);
+                        free(new_recipe);
                         return 1;
                     }
-                    sscanf(token, "%d", &ingredient_quantity);
+                    sscanf(token, "%d", &new_recipe->ingredients[ingredient_counter].quantity);
+                    ingredient_counter++;
+                }
+                
+                new_recipe->num_ingredients = ingredient_counter;
+                new_recipe->next = NULL;
+                if (insert_hash_table_recipe(new_recipe) != 0) {
+                    printf("Errore nell'inserimento della ricetta nella tabella hash\n");
+                    free(new_recipe);
+                    return 1;
                 }
 
                 break;
@@ -155,24 +286,60 @@ int main() {
                 }
                 strcpy(recipe_name, token);
 
+                Recipe_t* recipe_to_delete = search_hash_table_recipe(recipe_name);
+                if(recipe_to_delete == NULL) {
+                    // non esistente
+
+                    // TODO:
+                    //      Implementare il caso ricetta non esistente
+                } else{
+                    delete_hash_table_recipe(recipe_to_delete->name);
+                    free(recipe_to_delete);
+                    printf("Ricetta eliminata con successo!\n");
+                }
+
                 break;
             }
             case 2: {
                 // ordine
+                Order_t *new_order = (Order_t*)malloc(sizeof(Order_t));
+                
                 // Lettura della ricetta + quantità da ordinare
                 token = strtok(NULL, " ");
                 if(token == NULL){
-                    printf("Mancante ricetta da ordinare\n\tErrore riscontrato al giorno %d\n", day);
+                    printf("Mancante ricetta da ordinare in file\n\tErrore riscontrato al giorno %d\n", day);
+                    free(new_order);
                     return 1;
                 }
-                strcpy(recipe_name, token);
+                
+                Recipe_t* recipe = search_hash_table_recipe(token);
+                if(recipe == NULL) {
+                    // ricetta non esiste
+                    printf("Non esistente ricetta da ordinare\n\tErrore riscontrato al giorno %d\n", day);
+                    free(new_order);
+                    break;
+                }
+                
+                // Copia della ricetta nell'ordine
+                memcpy(&new_order->recipe, recipe, sizeof(Recipe_t));
+
                 token = strtok(NULL, " ");
                 if(token == NULL){
-                    printf("Mancante quantità della ricetta '%s'\n\tErrore riscontrato al giorno %d\n", recipe_name, day);
+                    printf("Mancante quantità dell'ordine '%s'\n\tErrore riscontrato al giorno %d\n", recipe->name, day);
+                    free(new_order);
                     return 1;
                 }
-                sscanf(token, "%d", &order_quantity);
+                sscanf(token, "%d", &new_order->quantity);
 
+                // Stampa dell'ordine
+                printf("Ordine: %s - Quantità: %d\n", new_order->recipe.name, new_order->quantity);
+                
+                // ordine pronto
+                // TODO:
+                //      implementare ciò che accade una volta che l'ordine è pronto
+
+                // Libera la memoria allocata per l'ordine
+                free(new_order);
                 break;
             }
             case 3: {
@@ -226,9 +393,13 @@ int main() {
         day++;
     }
 
+    print_hash_table_recipe();
     /*
         Chiusura file
     */
     fclose(file);
     return 0;
 }
+/*
+rifornimento farina 100 15 farina 50 13 uova 45 20 zucchero 20 20 burro 15 20
+*/

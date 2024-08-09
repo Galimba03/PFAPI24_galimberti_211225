@@ -1,0 +1,6 @@
+100 2000 qerqwefsda
+aggiungi_ricetta torta1 farina 3 cannella 2
+aggiungi_ricetta torta2 farina 3 cannella 1 uova 3 cannelloni 4
+aggiungi_ricetta torta3 farina 3 cannella 1 uova 3
+rimuovi_ricetta torta3
+ordine torta1 50
