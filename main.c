@@ -13,19 +13,23 @@
 typedef struct {
     char name[MAX_INGREDIENT_NAME];
     int quantity;
-} Ingredient_t;
+} Ingredient_recepie_t;
 
 typedef struct recipe{
     char name[MAX_RECIPE_NAME];
-    Ingredient_t ingredients[20];
+    Ingredient_recepie_t ingredients[20];
     int num_ingredients;
+    int weight;
     struct recipe* next;
 } Recipe_t;
 
 typedef struct {
     Recipe_t recipe;
     int quantity;
+    int arrival;
 } Order_t;
+
+
 
 /*
     Funzione che ritorna un valore in base al tipo di informazione letta dal file 
@@ -246,6 +250,7 @@ int main() {
                     return 1;
                 }
                 sscanf(token, "%d", &new_recipe->ingredients[ingredient_counter].quantity);
+                new_recipe->weight += new_recipe->ingredients[ingredient_counter].quantity;
 
                 // lettura ingrediente + quantità FACOLTATIVI
                 ingredient_counter++;
@@ -263,6 +268,7 @@ int main() {
                         return 1;
                     }
                     sscanf(token, "%d", &new_recipe->ingredients[ingredient_counter].quantity);
+                    new_recipe->weight += new_recipe->ingredients[ingredient_counter].quantity;
                     ingredient_counter++;
                 }
                 
@@ -331,15 +337,14 @@ int main() {
                 }
                 sscanf(token, "%d", &new_order->quantity);
 
+                new_order->arrival = day;
+
                 // Stampa dell'ordine
                 printf("Ordine: %s - Quantità: %d\n", new_order->recipe.name, new_order->quantity);
                 
                 // ordine pronto
                 // TODO:
                 //      implementare ciò che accade una volta che l'ordine è pronto
-
-                // Libera la memoria allocata per l'ordine
-                free(new_order);
                 break;
             }
             case 3: {
