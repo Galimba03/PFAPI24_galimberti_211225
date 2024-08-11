@@ -296,6 +296,92 @@ void print_hash_table_warehouse() {
     printf("END\n");
 }
 
+/*
+    Funzione che ricerca se un ordine è possibile da cucinare o meno
+    Returns:
+        true -> realizzabile
+        false -> non realizzabile
+*/
+bool check_order_disponibility(Order_t* order) {
+    if(order == NULL) {
+        return false;
+    }
+
+    for(int i = 0; i < order->recipe.num_ingredients; i++) {
+        Ingredient_recepie_t* ingredient = &order->recipe.ingredients[i];
+        Ingredient_warehouse_t* ingredient_warehouse = search_hash_table_warehouse(ingredient->name);
+
+        if (ingredient_warehouse == NULL) {
+            // Ingrediente non trovato nel magazzino
+            return false;
+        }
+
+        int sum = 0;
+        Expiring_t* temp_exp = ingredient_warehouse->head;
+
+        // controllo quantità dell'ingrediente i-esimo
+        while (temp_exp != NULL) {
+            sum += temp_exp->quantity;
+            if (sum >= (ingredient->quantity * order->quantity)) {
+                break;
+            }
+            temp_exp = temp_exp->next;
+        }
+
+        if (sum < (ingredient->quantity * order->quantity)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/*
+    Funzione che una volta controllata la disponibilità dell'ordine nel magazzino, crea l'ordine sottraendo al magazzino le quantità necessarie alla sua creazione
+*/
+void create_order(Order_t* order, int day) {
+    if (order == NULL || check_order_disponibility(order) == false) {
+        printf("Ordine non realizzabile\n");
+        // add_waiting_list(order, day);
+        return;
+    }
+
+    for (int i = 0; i < order->recipe.num_ingredients; i++) {
+        Ingredient_recepie_t *ingredient = &order->recipe.ingredients[i];
+        Ingredient_warehouse_t* ingredient_warehouse = search_hash_table_warehouse(ingredient->name);
+        Expiring_t* temp_exp = ingredient_warehouse->head;
+
+        int necessary = ingredient->quantity * order->quantity;
+
+        // rimozione di tutti i lotti scaduti
+        while (temp_exp != NULL && temp_exp->expire < day) {
+            Expiring_t* delete = temp_exp;
+            temp_exp = temp_exp->next;
+            free(delete);
+        }
+        ingredient_warehouse->head = temp_exp;
+
+        // uso delle quantità stockkate in magazzino
+        while (necessary > 0 && temp_exp != NULL) {
+            if (temp_exp->quantity <= necessary) {
+                necessary -= temp_exp->quantity;
+                Expiring_t* delete = temp_exp;
+                temp_exp = temp_exp->next;
+                free(delete);
+            } else {
+                temp_exp->quantity -= necessary;
+                necessary = 0;
+            }
+        }
+        ingredient_warehouse->head = temp_exp;
+    }
+
+    // add_ready_list(order, day);
+    //  TODO:
+    //      implementare add_ready_list()
+    printf("Ordine creato\n");
+}
+
 
 int main() {
     /*
@@ -480,6 +566,15 @@ int main() {
                 sscanf(token, "%d", &new_order->quantity);
 
                 new_order->arrival = day;
+
+                //  TODO:
+                //      impostare funzioni per capire se l'ordine può essere preparato
+                //      nel caso di ordini scaduti, aggiornare il tutto
+                
+
+                //  TODO:
+                //      mettere l'ordine in attesa
+
 
                 // Stampa dell'ordine
                 // printf("Ordine: %s - Quantità: %d\n", new_order->recipe.name, new_order->quantity);
