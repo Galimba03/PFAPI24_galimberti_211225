@@ -1,7 +1,8 @@
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <string.h>
-#include <libc.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <stdbool.h>
 
 #define MAX_LINE_LENGTH 1024
 #define MAX_COMMAND_LENGTH 20
@@ -17,7 +18,9 @@ typedef struct {
 
 typedef struct recipe{
     char name[MAX_RECIPE_NAME];
-    Ingredient_recepie_t ingredients[20];
+    //  TODO:
+    //      fare una lista di ingredienti
+    Ingredient_recepie_t ingredients[10];
     int num_ingredients;
     int weight;
     struct recipe* next;
@@ -75,7 +78,7 @@ unsigned int hash_function(char* name) {
     unsigned int hash_value = 0;
     for(int i = 0; i < length; i++) {
         hash_value += name[i];
-        hash_value = hash_value % TABLE_SIZE;
+        hash_value = (hash_value * name[i]) % TABLE_SIZE;
         //    TODO:
         //        cercare eventuali metodi per rendere ancora più randomica la funzione di hash
         // hash_value = (hash_value * name[i]) % TABLE_SIZE;
@@ -95,20 +98,20 @@ void init_hash_table_recipe() {
 /*
     Funzione che inizializza la funzione hash
     Returns:
-        0 -> no errors
-        1 -> errors
+        false -> no errors
+        true -> errors
 */
 //    TODO:
 //        cercare eventualmente se la funzione di hashing con remapping è migliore rispetto a questa
-int insert_hash_table_recipe(Recipe_t* recipe) {
+bool insert_hash_table_recipe(Recipe_t* recipe) {
     if(recipe == NULL) {
-        return 1;
+        return true;
     }
 
     int index = hash_function(recipe->name);
     recipe->next = hash_table_recipe[index];
     hash_table_recipe[index] = recipe;
-    return 0;
+    return false;
 }
 
 Recipe_t* search_hash_table_recipe(char* recipe_name) {
@@ -161,26 +164,16 @@ void print_hash_table_recipe() {
 
 int main() {
     /*
-        Apertura file in modalità lettura
-    */
-    FILE *file = fopen("inputTest.txt", "r"); 
-    if (file == NULL){
-        printf("Errore apertura file\n");
-        return 1;
-    }
-
-    /*
         Lettura arrival (arrivo ogni...) e space (capacià)
     */
     int arrival, space;
     char extra;
-    if(fscanf(file, "%d %d", &arrival, &space) != 2) {
+    if(fscanf(stdin, "%d %d", &arrival, &space) != 2) {
         printf("Errore input file: mancanti o periodicita\' o capienza\n");
-        fclose(file);
         return 1;
     } else {
         // Consumo resto della linea
-        while((extra = fgetc(file) != '\n') && extra != EOF);
+        while((extra = fgetc(stdin) != '\n') && extra != EOF);
     }
 
     /*
@@ -191,10 +184,9 @@ int main() {
     char recipe_name[MAX_RECIPE_NAME];
     char ingredient_name[MAX_INGREDIENT_NAME];
     int ingredient_quantity;
-    int order_quantity;
     int ingredient_expiring;
     int command_value;
-    int day;
+    int day = 0;
 
     //    TODO:
     //        Vedere se 512 basta come dimensione massima lineea altrimenti incrementarla
@@ -202,7 +194,7 @@ int main() {
     //        -> soluzione possibile su GT
     
     init_hash_table_recipe();
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), stdin)) {
         // Sostituzione carattere '\n' con terminatore stringa '\0' -> agevole per tokenizzazione
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') {
@@ -210,7 +202,6 @@ int main() {
         }
         command_value = process_command(line);
         if(command_value == -1) {
-            fclose(file);
             return 1;
         }
         // Tokenizzazione del comando -> da fare per forza causa comando
@@ -274,12 +265,18 @@ int main() {
                 
                 new_recipe->num_ingredients = ingredient_counter;
                 new_recipe->next = NULL;
-                if (insert_hash_table_recipe(new_recipe) != 0) {
-                    printf("Errore nell'inserimento della ricetta nella tabella hash\n");
+                if(search_hash_table_recipe(new_recipe->name) != NULL) {
                     free(new_recipe);
-                    return 1;
+                    printf("ignorato\n");
+                } else{
+                    if (insert_hash_table_recipe(new_recipe) == true) {
+                        printf("Errore nell'inserimento della ricetta nella tabella hash\n");
+                        free(new_recipe);
+                        return 1;
+                    }
+                    printf("aggiunta\n");
                 }
-
+                
                 break;
             }
             case 1: {
@@ -295,13 +292,13 @@ int main() {
                 Recipe_t* recipe_to_delete = search_hash_table_recipe(recipe_name);
                 if(recipe_to_delete == NULL) {
                     // non esistente
-
-                    // TODO:
-                    //      Implementare il caso ricetta non esistente
+                    printf("non presente\n");
                 } else{
+                    //  TODO:
+                    //      Implementare il caso ricetta esistente ma in fase di ordinamento
                     delete_hash_table_recipe(recipe_to_delete->name);
                     free(recipe_to_delete);
-                    printf("Ricetta eliminata con successo!\n");
+                    printf("rimossa\n");
                 }
 
                 break;
@@ -340,7 +337,7 @@ int main() {
                 new_order->arrival = day;
 
                 // Stampa dell'ordine
-                printf("Ordine: %s - Quantità: %d\n", new_order->recipe.name, new_order->quantity);
+                // printf("Ordine: %s - Quantità: %d\n", new_order->recipe.name, new_order->quantity);
                 
                 // ordine pronto
                 // TODO:
@@ -368,7 +365,7 @@ int main() {
                     return 1;
                 }
                 sscanf(token, "%d", &ingredient_expiring);
-                printf("%s: %d - %d\n", ingredient_name, ingredient_quantity, ingredient_expiring);
+                // printf("%s: %d - %d\n", ingredient_name, ingredient_quantity, ingredient_expiring);
 
                 // Lettura ingrediente + quantità + scadenza FACOLTATIVE
                 while(token != NULL){
@@ -389,8 +386,9 @@ int main() {
                         return 1;
                     }
                     sscanf(token, "%d", &ingredient_expiring);
-                    printf("%s: %d - %d\n", ingredient_name, ingredient_quantity, ingredient_expiring);
+                    // printf("%s: %d - %d\n", ingredient_name, ingredient_quantity, ingredient_expiring);
                 }
+                printf("rifornito\n");
                 
                 break;
             }
@@ -398,13 +396,9 @@ int main() {
         day++;
     }
 
-    print_hash_table_recipe();
     /*
-        Chiusura file
+        stampa della hash table
     */
-    fclose(file);
+    // print_hash_table_recipe();
     return 0;
 }
-/*
-rifornimento farina 100 15 farina 50 13 uova 45 20 zucchero 20 20 burro 15 20
-*/
