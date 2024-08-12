@@ -10,7 +10,8 @@
 #define MAX_INGREDIENT_NAME 255
 #define MAX_RECIPE_NAME 255
 
-#define RP_TABLE_SIZE 20
+#define RP_TABLE_SIZE 25
+#define WH_TABLE_SIZE 25
 
 typedef struct ingredient_recipe {
     char name[MAX_INGREDIENT_NAME];
@@ -41,6 +42,21 @@ typedef struct {
     Order_t* tail;
 } Order_list_t;
 
+typedef struct expiring {
+    int quantity;
+    int expiring_date;
+
+    struct expiring* next;
+} Expiring_t;
+
+typedef struct ingredient_warehouse {
+    char name[MAX_INGREDIENT_NAME];
+
+    Expiring_t* head;
+    Expiring_t* tail;
+    struct ingredient_warehouse* next;
+} Ingredient_warehouse_t;
+
 
 // -----------------------------------------
 
@@ -65,7 +81,7 @@ unsigned int hash_function(char* name, int hash_table_dim) {
 Recipe_t* hash_table_recipe[RP_TABLE_SIZE];
 
 /*
-    Funzione che inizializza la tabella di hash
+    Funzione che inizializza la tabella di hash delle ricette
 */
 void init_hash_table_recipe() {
     for(int i = 0; i < RP_TABLE_SIZE; i++){
@@ -164,11 +180,16 @@ void add_order_list(Order_list_t* list, Order_t* order) {
 /*
     Funzione che rimuove il primo elemento dalla lista
 */
-Order_t* remove_order_list(Order_list_t* list) {
+/*
+    TODO:
+        migliorarla man mano che vanno avanti le specifiche del progetto
+*/
+Order_t* remove_order_list(Order_list_t* list, int day) {
     if(list->head == NULL) {
         // Lista vuota
         return NULL;
     }
+
     Order_t* order = list->head;
     if(list->head == list->tail) {
         // Un solo elemento nella lista
@@ -176,10 +197,106 @@ Order_t* remove_order_list(Order_list_t* list) {
         list->tail = NULL;
     } else {
         // Più di un elemento nella lista
+        while(order->day_of_arrive != day) {
+            order = order->next;
+        }
         list->head = list->head->next;
         list->head->prev = NULL;
     }
     return order;
+}
+
+// --------------------------------------------------
+// FUNZIONI PER LA HASH TABLE DEL MAGAZZINO
+// --------------------------------------------------
+Ingredient_warehouse_t* hash_table_warehouse[WH_TABLE_SIZE];
+
+/*
+    Funzione che inizializza la tabella di hash del magazzino
+*/
+void init_hash_table_warehouse() {
+    for(int i = 0; i < WH_TABLE_SIZE; i++){
+        hash_table_warehouse[i] = NULL;
+    }
+}
+
+/*
+    Funzione che inizializza la funzione hash
+    Returns:
+        false -> no errors
+        true -> errors
+*/
+bool add_hash_table_warehouse(char* ingredient_name, int quantity, int expiring_date) {
+    if(quantity <= 0 || expiring_date < 0) {
+        return true;
+    }
+
+    int index = hash_function(ingredient_name, WH_TABLE_SIZE);
+    Ingredient_warehouse_t* scroller = hash_table_warehouse[index];
+
+    while(scroller != NULL && strncmp(scroller->name, ingredient_name, MAX_INGREDIENT_NAME) != 0) {
+        scroller = scroller->next;
+    }
+
+    if(scroller == NULL) {
+        // Nuovo ingrediente, aggiungilo alla lista
+        scroller = (Ingredient_warehouse_t*)malloc(sizeof(Ingredient_warehouse_t));
+        if(scroller == NULL) {
+            printf("Errore di allocazione della memoria\n");
+            return true;
+        }
+        strcpy(scroller->name, ingredient_name);
+        scroller->head = NULL;
+        scroller->tail = NULL;
+        scroller->next = hash_table_warehouse[index];
+        hash_table_warehouse[index] = scroller;
+    }
+
+    // Aggiungi la nuova quantità e scadenza in ordine nella lista di scadenze
+    Expiring_t* new_expiring = (Expiring_t*)malloc(sizeof(Expiring_t));
+    if(new_expiring == NULL) {
+        printf("Errore di allocazione della memoria\n");
+        return true;
+    }
+    new_expiring->quantity = quantity;
+    new_expiring->expiring_date = expiring_date;
+    new_expiring->next = NULL;
+
+    if (scroller->head == NULL) {
+        // caso lista vuota
+        scroller->head = new_expiring;
+        scroller->tail = new_expiring;
+    } else {
+        if(scroller->tail->expiring_date < new_expiring->expiring_date) {
+            // caso scadenza maggiore di tutte quelle già presenti -> worst case
+            scroller->tail->next = new_expiring;
+            scroller->tail = new_expiring;
+        } else {
+            Expiring_t* scroller_expiring = scroller->head;
+            Expiring_t* prev_expiring = NULL;
+
+            while(scroller_expiring != NULL && scroller_expiring->expiring_date < expiring_date) {
+                prev_expiring = scroller_expiring;
+                scroller_expiring = scroller_expiring->next;
+            }
+
+            if(prev_expiring == NULL) {
+                // Inserimento in testa alla coda
+                new_expiring->next = scroller->head;
+                scroller->head = new_expiring;
+            } else {
+                // Inserimento in mezzo o in fondo alla coda
+                new_expiring->next = prev_expiring->next;
+                prev_expiring->next = new_expiring;
+            }
+
+            if (new_expiring->next == NULL) {
+                scroller->tail = new_expiring;
+            }
+        }
+    }
+
+    return false;
 }
 
 // -----------------------------------------
@@ -358,14 +475,56 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
         TODO:
             Zona 'accettato'
     */
-
+    /*
+    update_warehouse(new_order, day);
+    bool result = check_warehouse(new_order);
+    if(result == false) {
+        // ordini in attesa
+        add_order_list(waiting_orders, new_order);
+    } else {
+        // ordini pronti
+        add_order_list(ready_orders, new_order);
+    }
+    */
 }
 
 /*
     Funzione che implementa la lettura di rifornimento
 */
 void manage_rifornimento(char* line) {
+    char* token;
 
+    // Salta il comando "rifornimento"
+    token = strtok(line, " ");
+    if (token == NULL) {
+        printf("Errore: comando mancante.\n");
+        return;
+    }
+    
+    // Lettura dell'ingrediente, della quantita' da rifornire e della scadenza
+    while ((token = strtok(NULL, " ")) != NULL) {
+        char ingredient_name[MAX_INGREDIENT_NAME];
+
+        strcpy(ingredient_name, token);
+        ingredient_name[MAX_INGREDIENT_NAME - 1] = '\0';
+
+        token = strtok(NULL, " ");
+        if (token == NULL) {
+            printf("Errore: quantità dell'ingrediente '%s' mancante.\n", ingredient_name);
+            return;
+        }
+        int quantity = atoi(token);
+
+        token = strtok(NULL, " ");
+        if (token == NULL) {
+            printf("Errore: scadenza dell'ingrediente '%s' mancante.\n", ingredient_name);
+            return;
+        }
+        int expiring_date = atoi(token);
+
+        add_hash_table_warehouse(ingredient_name, quantity, expiring_date);
+        printf("rifornito\n");
+    }
 }
 
 /*
@@ -394,6 +553,7 @@ void manage_line(char* line, int day, Order_list_t* ready_orders, Order_list_t* 
 int main() {
     // inizializzazione delle strutture
     init_hash_table_recipe();
+    init_hash_table_warehouse();
 
     // inizializzazione delle liste per gli ordini
     Order_list_t ready_orders;
