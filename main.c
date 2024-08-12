@@ -27,6 +27,21 @@ typedef struct recipe {
     struct recipe* next;
 } Recipe_t;
 
+typedef struct order{
+    Recipe_t* recipe;
+    int quantity;
+    int day_of_arrive;
+
+    struct order* prev;
+    struct order* next;
+} Order_t;
+
+typedef struct {
+    Order_t* head;
+    Order_t* tail;
+} Order_list_t;
+
+
 // -----------------------------------------
 
 /*
@@ -111,10 +126,61 @@ Recipe_t* delete_hash_table_recipe(char* recipe_name) {
     } else {
         prev->next = temp->next;
     }
-    
+
     return temp;
 }
 
+
+// -----------------------------------------
+// FUNZIONI PER LA GESTIONE DEGLI ORDINI
+// -----------------------------------------
+/*
+    Funzione che inizializza una lista necessaria per gli ordini, che sia lista degli ordini pronti o degli ordini in attesa di preparazione
+*/
+void init_order_list(Order_list_t* list) {
+    list->head = NULL;
+    list->tail = NULL;
+}
+
+/*
+    Funzione che aggiunge in coda alla lista un nuovo elemento
+*/
+void add_order_list(Order_list_t* list, Order_t* order) {
+    order->next = NULL;
+    if(list->tail == NULL) {
+        // lista vuota
+        order->prev = NULL;
+        list->head = order;
+        list->tail = order;
+    } else {
+        // lista non vuota -> aggiungo in coda alla lista
+        order->prev = list->tail;
+        list->tail->next = order;
+        list->tail = order;
+    }
+    return;
+}
+
+/*
+    Funzione che rimuove il primo elemento dalla lista
+*/
+Order_t* remove_order_list(Order_list_t* list) {
+    if(list->head == NULL) {
+        // Lista vuota
+        return NULL;
+    }
+    Order_t* order = list->head;
+    if(list->head == list->tail) {
+        // Un solo elemento nella lista
+        list->head = NULL;
+        list->tail = NULL;
+    } else {
+        // Più di un elemento nella lista
+        list->head = list->head->next;
+        list->head->prev = NULL;
+    }
+    return order;
+}
 
 // -----------------------------------------
 // FUNZIONI PER LA GESTIONE DEI COMANDI
@@ -247,7 +313,51 @@ void manage_rimuovi_ricetta(char* line) {
 /*
     Funzione che implementa la lettura di ordine
 */
-void manage_ordine(char* line) {
+void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
+    char* token;
+    char recipe_name[MAX_RECIPE_NAME];
+
+    // Salta il comando "ordine"
+    token = strtok(line, " ");
+    if (token == NULL) {
+        printf("Errore: comando mancante.\n");
+        return;
+    }
+
+    // Lettura nome della ricetta da ordinare
+    token = strtok(NULL, " ");
+    if (token == NULL) {
+        printf("Errore: nome della ricetta mancante.\n");
+        return;
+    }
+    strcpy(recipe_name, token);
+    recipe_name[MAX_RECIPE_NAME - 1] = '\0';
+
+    // Controllo ricetta esista
+    Recipe_t* recipe = search_hash_table_recipe(recipe_name);
+    if(recipe != NULL) {
+        printf("rifiutato\n");
+        return;
+    }
+
+    Order_t* new_order = (Order_t*)malloc(sizeof(Order_t));
+    new_order->recipe = recipe;
+
+    // Lettura quantita' di elementi della ricetta da ordinare
+    token = strtok(NULL, " ");
+    if (token == NULL) {
+        printf("Errore: quantità da ordinare della ricetta mancante.\n");
+        free(new_order);
+        return;
+    }
+    new_order->quantity= atoi(token);
+    
+    new_order->day_of_arrive = day;
+
+    /*
+        TODO:
+            Zona 'accettato'
+    */
 
 }
 
@@ -261,7 +371,7 @@ void manage_rifornimento(char* line) {
 /*
     Funzione che dato in input una stringa gestisce il tipo di comando assegnato mediante input stdin
 */
-void manage_line(char* line) {
+void manage_line(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
     char command[MAX_COMMAND_LENGTH];
 
     if(sscanf(line, "%s", command) != 1) {
@@ -274,7 +384,7 @@ void manage_line(char* line) {
     } else if (strcmp(command, "rimuovi_ricetta") == 0) {
         manage_rimuovi_ricetta(line);
     } else if (strcmp(command, "ordine") == 0) {
-        manage_ordine(line);
+        manage_ordine(line, day, ready_orders, waiting_orders);
     } else if (strcmp(command, "rifornimento") == 0) {
         manage_rifornimento(line);
     }
@@ -284,6 +394,12 @@ void manage_line(char* line) {
 int main() {
     // inizializzazione delle strutture
     init_hash_table_recipe();
+
+    // inizializzazione delle liste per gli ordini
+    Order_list_t ready_orders;
+    Order_list_t waiting_orders;
+    init_order_list(&ready_orders);
+    init_order_list(&waiting_orders);
 
 
     // lettura della periodicità d'arrivo e lettura dello spazio a disposizione del camioncino
@@ -300,13 +416,16 @@ int main() {
     // lettura dei comandi e loro gestione
     char* line = NULL;
     size_t len = 0;
+    int day = 0;
     while(getline(&line, &len, stdin) != -1){
         // cancellazione del carattere '\n'
         size_t line_len = strlen(line);
         if (line_len > 0 && line[line_len-1] == '\n') {
             line[line_len-1] = '\0';
         }
-        manage_line(line);
+        manage_line(line, day, &ready_orders, &waiting_orders);
+
+        day++;
     }
     free(line);
 
