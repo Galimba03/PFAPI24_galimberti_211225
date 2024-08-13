@@ -147,69 +147,9 @@ Recipe_t* delete_hash_table_recipe(char* recipe_name) {
     return temp;
 }
 
-
-// -----------------------------------------
-// FUNZIONI PER LA GESTIONE DEGLI ORDINI
-// -----------------------------------------
-/*
-    Funzione che inizializza una lista necessaria per gli ordini, che sia lista degli ordini pronti o degli ordini in attesa di preparazione
-*/
-void init_order_list(Order_list_t* list) {
-    list->head = NULL;
-    list->tail = NULL;
-}
-
-/*
-    Funzione che aggiunge in coda alla lista un nuovo elemento
-*/
-void add_order_list(Order_list_t* list, Order_t* order) {
-    order->next = NULL;
-    if(list->tail == NULL) {
-        // lista vuota
-        order->prev = NULL;
-        list->head = order;
-        list->tail = order;
-    } else {
-        // lista non vuota -> aggiungo in coda alla lista
-        order->prev = list->tail;
-        list->tail->next = order;
-        list->tail = order;
-    }
-    return;
-}
-
-/*
-    Funzione che rimuove il primo elemento dalla lista
-*/
-/*
-    TODO:
-        migliorarla man mano che vanno avanti le specifiche del progetto
-*/
-Order_t* remove_order_list(Order_list_t* list, int day) {
-    if(list->head == NULL) {
-        // Lista vuota
-        return NULL;
-    }
-
-    Order_t* order = list->head;
-    if(list->head == list->tail) {
-        // Un solo elemento nella lista
-        list->head = NULL;
-        list->tail = NULL;
-    } else {
-        // Più di un elemento nella lista
-        while(order->day_of_arrive != day) {
-            order = order->next;
-        }
-        list->head = list->head->next;
-        list->head->prev = NULL;
-    }
-    return order;
-}
-
-// --------------------------------------------------
+// ----------------------------------------
 // FUNZIONI PER LA HASH TABLE DEL MAGAZZINO
-// --------------------------------------------------
+// ----------------------------------------
 Ingredient_warehouse_t* hash_table_warehouse[WH_TABLE_SIZE];
 
 /*
@@ -243,7 +183,7 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
         // Nuovo ingrediente, aggiungilo alla lista
         scroller = (Ingredient_warehouse_t*)malloc(sizeof(Ingredient_warehouse_t));
         if(scroller == NULL) {
-            printf("Errore di allocazione della memoria\n");
+            printf("Errore: allocazione della memoria.\n");
             return true;
         }
         strcpy(scroller->name, ingredient_name);
@@ -257,7 +197,7 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
     // Aggiungi la nuova quantità e scadenza in ordine nella lista di scadenze
     Expiring_t* new_expiring = (Expiring_t*)malloc(sizeof(Expiring_t));
     if(new_expiring == NULL) {
-        printf("Errore di allocazione della memoria\n");
+        printf("Errore: allocazione di memoria.\n");
         return true;
     }
     new_expiring->quantity = quantity;
@@ -434,9 +374,167 @@ bool time_to_cook(Order_t* order, int day) {
     return true;
 }
 
-// -----------------------------------------
+// -------------------------------------
+// FUNZIONI PER LA GESTIONE DEGLI ORDINI
+// -------------------------------------
+/*
+    Funzione che inizializza una lista necessaria per gli ordini, che sia lista degli ordini pronti o degli ordini in attesa di preparazione
+*/
+void init_order_list(Order_list_t* list) {
+    list->head = NULL;
+    list->tail = NULL;
+}
+
+/*
+    Funzione che aggiunge in coda alla lista un nuovo elemento
+*/
+/*
+    TODO:
+        migliorarla man mano che vanno avanti le specifiche del progetto
+*/
+void add_order_list(Order_list_t* list, Order_t* order) {
+    if(list->head == NULL || list->head->day_of_arrive > order->day_of_arrive) {
+        // Inserimento in testa
+        order->next = list->head;
+        order->prev = NULL;
+        if(list->head != NULL) {
+            list->head->prev = order;
+        }
+        list->head = order;
+        if(list->tail == NULL) {
+            // Caso in cui la lista era vuota
+            list->tail = order;
+        }
+    } else {
+        // Inserimento in mezzo o in fondo
+        if(order->day_of_arrive > list->tail->day_of_arrive) {
+            // Inserimento in fondo con salto di coda
+            order->prev = list->tail;
+            order->next = NULL;
+            list->tail->next = order;
+            list->tail = order;
+        } else {
+            // Inserimento in mezzo
+            Order_t* order_scroller = list->head;
+            while(order_scroller->next != NULL && order_scroller->next->day_of_arrive <= order->day_of_arrive) {
+                order_scroller = order_scroller->next;
+            }
+            order->next = order_scroller->next;
+            order_scroller->next->prev = order;
+            order_scroller->next = order;
+            order->prev = order_scroller;
+        }
+    }
+}
+
+Order_t* search_waiting_list(Order_list_t* list, char* recipe_name) {
+    Order_t* order_scroller = list->head;
+
+    while(order_scroller != NULL && strncmp(order_scroller->recipe->name, recipe_name, MAX_RECIPE_NAME)) {
+        order_scroller = order_scroller->next;
+    }
+
+    return order_scroller;
+}
+
+Order_t* delete_order_list(Order_list_t* list, int day_of_arrive) {
+    // Lista vuota
+    if(list->head == NULL) {
+        return NULL;
+    }
+
+    Order_t* order_scroller = list->head;
+
+    // Cerca l'ordine con il rispettivo ordine di arrivo
+    while(order_scroller != NULL && order_scroller->day_of_arrive != day_of_arrive) {
+        order_scroller = order_scroller->next;
+    }
+
+    if(order_scroller == NULL) {
+        return NULL;
+    }
+
+    // Cancellazione dell'ordine
+    if(order_scroller == list->head) {
+        // Ordine in testa alla lista
+        list->head = order_scroller->next;
+        if(list->head != NULL) {
+            list->head->prev = NULL;
+        } else {
+            // Lista è vuota
+            list->tail = NULL;
+        }
+    } else {
+        if(order_scroller == list->tail) {
+            // Ordine in coda alla lista
+            list->tail = order_scroller->prev;
+            if(list->tail != NULL) {
+                list->tail->next = NULL;
+            }
+        } else {
+            // Ordine in mezzo alla lista
+            order_scroller->prev->next = order_scroller->next;
+            order_scroller->next->prev = order_scroller->prev;
+        }
+        
+    }
+    
+    return order_scroller;
+}
+
+Order_t* delete_order_list_element(Order_list_t* list, Order_t* to_delete) {
+    if(to_delete == NULL) {
+        return NULL;
+    }
+
+    // Cancellazione dell'ordine
+    if(to_delete == list->head) {
+        // Ordine in testa alla lista
+        list->head = to_delete->next;
+        if(list->head != NULL) {
+            list->head->prev = NULL;
+        } else {
+            // Lista è vuota
+            list->tail = NULL;
+        }
+    } else {
+        if(to_delete == list->tail) {
+            // Ordine in coda alla lista
+            list->tail = to_delete->prev;
+            if(list->tail != NULL) {
+                list->tail->next = NULL;
+            }
+        } else {
+            // Ordine in mezzo alla lista
+            to_delete->prev->next = to_delete->next;
+            to_delete->next->prev = to_delete->prev;
+        }
+        
+    }
+    
+    return to_delete;
+}
+
+void cook_waiting(Order_list_t* waiting_list, int day) {
+    Order_t* scroller = waiting_list->head;
+
+    while(scroller != NULL) {
+        Order_t* next_order = scroller->next;
+
+        // Si cerca se è possibile cucinare la ricetta
+        if(time_to_cook(scroller, day) == true) {
+            delete_order_list_element(waiting_list, scroller);
+        }
+
+        scroller = next_order;
+    }
+
+    return;
+}
+
+// ------------------------------------
 // FUNZIONI PER LA GESTIONE DEI COMANDI
-// -----------------------------------------
+// ------------------------------------
 /*
     Funzione che inserisce nella ricetta un nuovo ingrediente. Gestisce correttamente la lista
 */
@@ -526,7 +624,7 @@ void manage_aggiungi_ricetta(char* line) {
 /*
     Funzione che implementa la lettura di rimuovi_ricetta
 */
-void manage_rimuovi_ricetta(char* line) {
+void manage_rimuovi_ricetta(char* line, Order_list_t* waiting_list) {
     char* token;
     char recipe_name[MAX_RECIPE_NAME];
 
@@ -555,9 +653,13 @@ void manage_rimuovi_ricetta(char* line) {
             TODO:
                 implementare il caso ricetta esistente ma in fase di ordinamento
         */
-        delete_hash_table_recipe(recipe_to_delete->name);
-        free(recipe_to_delete);
-        printf("rimossa\n");
+        if(search_waiting_list(waiting_list, recipe_to_delete->name) == NULL) {
+            delete_hash_table_recipe(recipe_to_delete->name);
+            free(recipe_to_delete);
+            printf("rimossa\n");
+        } else {
+            printf("ordini in sospeso\n");
+        }
     }
     
 }
@@ -606,22 +708,21 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
     
     new_order->day_of_arrive = day;
 
-    /*
-        TODO:
-            Zona 'accettato'
-    */
     if(time_to_cook(new_order, day) == true) {
         // aggiornamento lista ready
-
+        add_order_list(ready_orders, new_order);
     } else {
         // aggiornamento lista waiting
+        add_order_list(waiting_orders, new_order);
     }
+
+    printf("accettato\n");
 }
 
 /*
     Funzione che implementa la lettura di rifornimento
 */
-void manage_rifornimento(char* line, int day) {
+void manage_rifornimento(char* line, int day, Order_list_t* waiting_orders) {
     char* token;
 
     // Salta il comando "rifornimento"
@@ -653,8 +754,13 @@ void manage_rifornimento(char* line, int day) {
         int expiring_date = atoi(token);
 
         update_and_add_hash_table_warehouse(ingredient_name, quantity, expiring_date, day);
-        printf("rifornito\n");
     }
+    printf("rifornito\n");
+    /*
+        TODO:
+            Implementare la preparazione di tutti quegli ordini che stanno in attesa
+    */
+    cook_waiting(waiting_orders, day);
 }
 
 /*
@@ -664,24 +770,24 @@ void manage_line(char* line, int day, Order_list_t* ready_orders, Order_list_t* 
     char command[MAX_COMMAND_LENGTH];
 
     if(sscanf(line, "%s", command) != 1) {
-        printf("Errore nella lettura del comando\n");
+        printf("Errore: lettura del comando\n");
         return;
     }
 
     if(strcmp(command, "aggiungi_ricetta") == 0) {
         manage_aggiungi_ricetta(line);
     } else if(strcmp(command, "rimuovi_ricetta") == 0) {
-        manage_rimuovi_ricetta(line);
+        manage_rimuovi_ricetta(line, waiting_orders);
     } else if(strcmp(command, "ordine") == 0) {
         manage_ordine(line, day, ready_orders, waiting_orders);
     } else if(strcmp(command, "rifornimento") == 0) {
-        manage_rifornimento(line, day);
+        manage_rifornimento(line, day, waiting_orders);
     }
     return;
 }
 
 int main() {
-    // inizializzazione delle strutture
+    // Inizializzazione delle strutture
     init_hash_table_recipe();
     init_hash_table_warehouse();
 
@@ -692,23 +798,28 @@ int main() {
     init_order_list(&waiting_orders);
 
 
-    // lettura della periodicità d'arrivo e lettura dello spazio a disposizione del camioncino
+    // Lettura della periodicità d'arrivo e lettura dello spazio a disposizione del camioncino
     int arrive_time, capacity;
     char extra;
     if(fscanf(stdin, "%d %d", &arrive_time, &capacity) != 2) {
-        printf("Errore input stdin: mancanti o periodicita\' o capienza\n");
+        printf("Errore: input stdin mancanti o periodicita\' o capienza\n");
         return 1;
     } else {
         // Consumo resto della linea
         while((extra = fgetc(stdin) != '\n') && extra != EOF);
     }
 
-    // lettura dei comandi e loro gestione
+    // Lettura dei comandi e loro gestione
     char* line = NULL;
     size_t len = 0;
     int day = 0;
     while(getline(&line, &len, stdin) != -1){
-        // cancellazione del carattere '\n'
+        if(day != 0 && (day % arrive_time == 0)) {
+            // Zona caricamento camioncino
+            
+        }
+
+        // Cancellazione del carattere '\n'
         size_t line_len = strlen(line);
         if (line_len > 0 && line[line_len-1] == '\n') {
             line[line_len-1] = '\0';
