@@ -515,7 +515,7 @@ Order_t* delete_order_list_element(Order_list_t* list, Order_t* to_delete) {
     return to_delete;
 }
 
-void cook_waiting(Order_list_t* waiting_list, int day) {
+void cook_waiting(Order_list_t* ready_list, Order_list_t* waiting_list, int day) {
     Order_t* scroller = waiting_list->head;
 
     while(scroller != NULL) {
@@ -524,12 +524,20 @@ void cook_waiting(Order_list_t* waiting_list, int day) {
         // Si cerca se è possibile cucinare la ricetta
         if(time_to_cook(scroller, day) == true) {
             delete_order_list_element(waiting_list, scroller);
+            add_order_list(ready_list, scroller);
         }
 
         scroller = next_order;
     }
 
     return;
+}
+
+// ----------------------------------------
+// FUNZIONI PER IL CONTROLLO DEL CAMIONCINO
+// ----------------------------------------
+void load_lorry(Order_list_t* ready_list) {
+
 }
 
 // ------------------------------------
@@ -722,7 +730,7 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
 /*
     Funzione che implementa la lettura di rifornimento
 */
-void manage_rifornimento(char* line, int day, Order_list_t* waiting_orders) {
+void manage_rifornimento(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
     char* token;
 
     // Salta il comando "rifornimento"
@@ -760,7 +768,7 @@ void manage_rifornimento(char* line, int day, Order_list_t* waiting_orders) {
         TODO:
             Implementare la preparazione di tutti quegli ordini che stanno in attesa
     */
-    cook_waiting(waiting_orders, day);
+    cook_waiting(ready_orders, waiting_orders, day);
 }
 
 /*
@@ -781,7 +789,7 @@ void manage_line(char* line, int day, Order_list_t* ready_orders, Order_list_t* 
     } else if(strcmp(command, "ordine") == 0) {
         manage_ordine(line, day, ready_orders, waiting_orders);
     } else if(strcmp(command, "rifornimento") == 0) {
-        manage_rifornimento(line, day, waiting_orders);
+        manage_rifornimento(line, day, ready_orders, waiting_orders);
     }
     return;
 }
@@ -816,7 +824,7 @@ int main() {
     while(getline(&line, &len, stdin) != -1){
         if(day != 0 && (day % arrive_time == 0)) {
             // Zona caricamento camioncino
-            
+            load_lorry(&ready_orders);
         }
 
         // Cancellazione del carattere '\n'
