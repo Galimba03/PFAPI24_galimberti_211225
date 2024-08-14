@@ -10,9 +10,10 @@
 #define MAX_INGREDIENT_NAME 255
 #define MAX_RECIPE_NAME 255
 
-#define RP_TABLE_SIZE 25
-#define WH_TABLE_SIZE 25
+#define RP_TABLE_SIZE 50
+#define WH_TABLE_SIZE 100
 
+// Strutture per le ricette e gli ingredienti che le contengono
 typedef struct ingredient_recipe {
     char name[MAX_INGREDIENT_NAME];
     int quantity;
@@ -37,11 +38,13 @@ typedef struct order{
     struct order* next;
 } Order_t;
 
+// Struttura per le liste di ordini pronti o in attesa
 typedef struct {
     Order_t* head;
     Order_t* tail;
 } Order_list_t;
 
+// Struttura per il magazzino e i lotti
 typedef struct expiring {
     int quantity;
     int expiring_date;
@@ -57,6 +60,15 @@ typedef struct ingredient_warehouse {
     Expiring_t* tail;
     struct ingredient_warehouse* next;
 } Ingredient_warehouse_t;
+
+// Struttura per il camioncino
+typedef struct {
+    Order_t** orders;
+    int size;
+    int capacity;
+} Lorry_t;
+
+Lorry_t lorry;
 
 
 // -----------------------------------------
@@ -536,9 +548,97 @@ void cook_waiting(Order_list_t* ready_list, Order_list_t* waiting_list, int day)
 // ----------------------------------------
 // FUNZIONI PER IL CONTROLLO DEL CAMIONCINO
 // ----------------------------------------
-void load_lorry(Order_list_t* ready_list) {
-
+/*
+    Funzione che inizializza il camioncino della dimensione scelta
+*/
+void init_lorry(int initial_capacity) {
+    lorry.orders = (Order_t**)malloc(sizeof(Order_t*) * initial_capacity);
+    lorry.size = 0;
+    lorry.capacity = initial_capacity;
 }
+
+/*
+    Funzione che aggiunge al camioncino un ordine, e se serve ne aumenta la dimensione
+*/
+void add_to_lorry(Order_t* order) {
+    if(lorry.size >= lorry.capacity) {
+        // Incremento della dimensione del camioncino di 5
+        /*
+            TODO:
+                in caso non serva, usare la moltiplicazione per una minore probabilità di reallocazione
+        */
+        lorry.capacity += 5;
+        lorry.orders = (Order_t**)realloc(lorry.orders, sizeof(Order_t*) * lorry.capacity);
+    }
+    lorry.orders[lorry.size++] = order;
+
+    return;
+}
+
+/*
+    Funzione per il caricamento del camioncino
+*/
+void load_lorry(Order_list_t* ready_list, int lorry_space) {
+    Order_t* current_order = ready_list->head;
+    
+    while(current_order != NULL && lorry_space > 0) {
+        int order_weight = current_order->recipe->weight * current_order->quantity;
+        
+        if(order_weight <= lorry_space) {
+            lorry_space -= order_weight;
+            Order_t* order_to_load = delete_order_list_element(ready_list, current_order);
+            add_to_lorry(order_to_load);
+        }
+        
+        current_order = current_order->next;
+    }
+
+    return;
+}
+
+
+/*
+    Insertion sort per riordinare gli elementi del camioncino in ordine di peso
+*/
+void insertion_sort_weight(Order_t* orders[], int n) {
+    for(int i = 1; i < n; i++) {
+        Order_t* key = orders[i];
+        int j = i-1;
+
+        while(j >= 0 && (orders[j]->recipe->weight * orders[j]->quantity) > (key->recipe->weight * key->quantity)) {
+            orders[j+1] = orders[j];
+            j -= 1;
+        }
+        orders[j+1] = key;
+    }
+}
+
+/*
+    Funzione per la stampa in ordine di peso degli elementi del camioncino
+*/
+void print_lorry() {
+    if(lorry.size == 0) {
+        printf("camioncino vuoto\n");
+    } else {
+        // Ordinamento degli ordini in base al peso
+        insertion_sort_weight(lorry.orders, lorry.size);
+
+        // Stampa gli ordini
+        for (int i = 0; i < lorry.size; i++) {
+            Order_t* order = lorry.orders[i];
+            printf("%d %s %d\n", order->day_of_arrive, order->recipe->name, order->quantity);
+        }
+
+        // Pulizia della memoria
+        for (int i = 0; i < lorry.size; i++) {
+            free(lorry.orders[i]);
+        }
+
+        // Camioncino vuoto
+        lorry.size = 0;
+    }
+}
+
 
 // ------------------------------------
 // FUNZIONI PER LA GESTIONE DEI COMANDI
@@ -817,14 +917,18 @@ int main() {
         while((extra = fgetc(stdin) != '\n') && extra != EOF);
     }
 
+    // Inizializzazione del camioncino (della sua capacità)
+    init_lorry(capacity);
+
     // Lettura dei comandi e loro gestione
     char* line = NULL;
     size_t len = 0;
     int day = 0;
-    while(getline(&line, &len, stdin) != -1){
-        if(day != 0 && (day % arrive_time == 0)) {
-            // Zona caricamento camioncino
-            load_lorry(&ready_orders);
+    while(getline(&line, &len, stdin) != -1) {
+        // Controllo del camioncino
+        if(day % arrive_time == 0 && day != 0) {
+            load_lorry(&ready_orders, capacity);
+            print_lorry();
         }
 
         // Cancellazione del carattere '\n'
@@ -834,9 +938,23 @@ int main() {
         }
         manage_line(line, day, &ready_orders, &waiting_orders);
 
+
         day++;
     }
+
+    if(day % arrive_time == 0 && day != 0) {
+        load_lorry(&ready_orders, capacity);
+        print_lorry();
+    }
+    
+    // Pulizia della linea
     free(line);
+
+    // Pulizia del camioncino
+    free(lorry.orders);
+    lorry.orders = NULL;
+    lorry.size = 0;
+    lorry.capacity = 0;
 
     return 0;
 }
