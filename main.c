@@ -220,6 +220,7 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
         // caso lista vuota
         scroller->head = new_expiring;
         scroller->tail = new_expiring;
+        scroller->total_quantity += new_expiring->quantity;
     } else {
         if(scroller->tail->expiring_date < new_expiring->expiring_date) {
             // caso scadenza maggiore di tutte quelle già presenti -> worst case
@@ -281,19 +282,46 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
 }
 
 /*
+    Funzione per la stampa del magazzino e di tutte le scadenze
+*/
+void print_warehouse() {
+    printf("START\n");
+    for(int i = 0; i < WH_TABLE_SIZE; i++) {
+        if(hash_table_warehouse[i] != NULL) {
+            Ingredient_warehouse_t* current_ingredient = hash_table_warehouse[i];
+            printf("%d :\n", i);
+            while(current_ingredient != NULL) {
+                printf("    %s -> ", current_ingredient->name);
+                Expiring_t* current_expiring = current_ingredient->head;
+                while(current_expiring != NULL) {
+                    printf("%d (scadenza: %d)", current_expiring->quantity, current_expiring->expiring_date);
+                    current_expiring = current_expiring->next;
+                    if (current_expiring != NULL) {
+                        printf(", ");
+                    }
+                }
+                printf("\n");
+                current_ingredient = current_ingredient->next;
+            }
+        }
+    }
+    printf("END\n");
+}
+
+/*
     Funzione che controlla se l'ordine è realizzabile. Se lo è aggiorna il magazzino togliendogli tutti gli elementi necessari alla realizzazione della ricetta
     Returns:
         false -> non realizzabile
         true -> realizzabile e realizzato
 */
 bool time_to_cook(Order_t* order, int day) {
-    Ingredient_recipe_t* ingredient_recipe = order->recipe->head;
+    Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
 
-    while(ingredient_recipe != NULL) {
-        int index = hash_function(ingredient_recipe->name, WH_TABLE_SIZE);
+    while(recipe_ingredient != NULL) {
+        int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
         Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
 
-        while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, ingredient_recipe->name, MAX_INGREDIENT_NAME) != 0) {
+        while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
             warehouse_ingredient = warehouse_ingredient->next;
         }
 
@@ -301,8 +329,11 @@ bool time_to_cook(Order_t* order, int day) {
             return false;
         }
 
+        // Linea di printf per il debugging
+        // printf("Ingredienti in magazzino: %d\nIngredienti necessari ricetta: %d\n", warehouse_ingredient->total_quantity, recipe_ingredient->quantity * order->quantity);
+
         // Verificando se la quantità totale è sufficiente
-        if (warehouse_ingredient->total_quantity < ingredient_recipe->quantity * order->quantity) {
+        if (warehouse_ingredient->total_quantity < recipe_ingredient->quantity * order->quantity) {
             return false;
         }
 
@@ -342,7 +373,7 @@ bool time_to_cook(Order_t* order, int day) {
             }
 
             // Calcolo quantità necessaria, ed in caso affermativo, si procede alla preparazione
-            int required_quantity = ingredient_recipe->quantity * order->quantity;
+            int required_quantity = recipe_ingredient->quantity * order->quantity;
             if(warehouse_ingredient->total_quantity < required_quantity) {
                 return false;
             } else {
@@ -380,7 +411,7 @@ bool time_to_cook(Order_t* order, int day) {
         }
         
         // Passa all'ingrediente successivo nella ricetta
-        ingredient_recipe = ingredient_recipe->next;
+        recipe_ingredient = recipe_ingredient->next;
     }
 
     return true;
@@ -605,7 +636,7 @@ void insertion_sort_weight(Order_t* orders[], int n) {
         Order_t* key = orders[i];
         int j = i-1;
 
-        while(j >= 0 && (orders[j]->recipe->weight * orders[j]->quantity) > (key->recipe->weight * key->quantity)) {
+        while(j >= 0 && (orders[j]->recipe->weight * orders[j]->quantity) < (key->recipe->weight * key->quantity)) {
             orders[j+1] = orders[j];
             j -= 1;
         }
@@ -757,10 +788,6 @@ void manage_rimuovi_ricetta(char* line, Order_list_t* waiting_list) {
     if(recipe_to_delete == NULL) {
         printf("non presente\n");
     } else {
-        /*
-            TODO:
-                implementare il caso ricetta esistente ma in fase di ordinamento
-        */
         if(search_waiting_list(waiting_list, recipe_to_delete->name) == NULL) {
             delete_hash_table_recipe(recipe_to_delete->name);
             free(recipe_to_delete);
@@ -816,6 +843,9 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
     
     new_order->day_of_arrive = day;
 
+    /*
+        TODO: fix 'time_to_cook'
+    */
     if(time_to_cook(new_order, day) == true) {
         // aggiornamento lista ready
         add_order_list(ready_orders, new_order);
@@ -823,7 +853,7 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
         // aggiornamento lista waiting
         add_order_list(waiting_orders, new_order);
     }
-
+    // print_warehouse();
     printf("accettato\n");
 }
 
