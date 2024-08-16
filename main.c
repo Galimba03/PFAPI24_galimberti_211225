@@ -217,13 +217,13 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
     new_expiring->next = NULL;
 
     if (scroller->head == NULL) {
-        // caso lista vuota
+        // Caso lista vuota
         scroller->head = new_expiring;
         scroller->tail = new_expiring;
         scroller->total_quantity += new_expiring->quantity;
     } else {
         if(scroller->tail->expiring_date < new_expiring->expiring_date) {
-            // caso scadenza maggiore di tutte quelle già presenti -> worst case
+            // Caso scadenza maggiore di tutte quelle già presenti -> worst case
             scroller->tail->next = new_expiring;
             scroller->tail = new_expiring;
             scroller->total_quantity += new_expiring->quantity;
@@ -231,35 +231,32 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
             Expiring_t* scroller_expiring = scroller->head;
             Expiring_t* prev_expiring = NULL;
 
-            // aggiornamento della lista eliminando tutti gli elementi scaduti
-            while(scroller_expiring != NULL && scroller_expiring->expiring_date < expiring_date) {
-                if(scroller_expiring->expiring_date < day) {
-                    // Rimozione elemento scaduto
-                    if(prev_expiring == NULL) {
-                        // L'elemento da rimuovere è la testa della lista
-                        scroller->head = scroller_expiring->next;
-                        if(scroller->head == NULL) {
-                            // La lista diventa vuota, aggiorna anche la coda
-                            scroller->tail = NULL;
-                        }
-                    } else {
-                        // L'elemento da rimuovere non è la testa
-                        prev_expiring->next = scroller_expiring->next;
-                        if(prev_expiring->next == NULL) {
-                            // L'elemento rimosso era la coda
-                            scroller->tail = prev_expiring;
-                        }
+            // Aggiornamento della lista eliminando tutti gli elementi scaduti
+            while(scroller_expiring != NULL && scroller_expiring->expiring_date < day) {
+                // Rimozione elemento scaduto
+                if(prev_expiring == NULL) {
+                    // L'elemento da rimuovere è la testa della lista
+                    scroller->head = scroller_expiring->next;
+                    if(scroller->head == NULL) {
+                        // La lista diventa vuota, aggiorna anche la coda
+                        scroller->tail = NULL;
                     }
-                    Expiring_t* temp = scroller_expiring;
-                    scroller->total_quantity -= temp->quantity;
-                    scroller_expiring = scroller_expiring->next;
-                    free(temp);
                 } else {
-                    prev_expiring = scroller_expiring;
-                    scroller_expiring = scroller_expiring->next;
+                    // L'elemento da rimuovere non è la testa -> o è in mezzo o è la coda
+                    prev_expiring->next = scroller_expiring->next;
+                    if(prev_expiring->next == NULL) {
+                        // L'elemento rimosso era la coda
+                        scroller->tail = prev_expiring;
+                    }
                 }
+
+                Expiring_t* temp = scroller_expiring;
+                scroller->total_quantity -= temp->quantity;
+                scroller_expiring = scroller_expiring->next;
+                free(temp);
             }
 
+            // Fase di inserimento dell'elemento
             if(prev_expiring == NULL) {
                 // Inserimento in testa alla coda
                 scroller->total_quantity += new_expiring->quantity;
@@ -272,6 +269,7 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
                 prev_expiring->next = new_expiring;
             }
 
+            // Caso in cui l'elemento inserito sia finito in fondo alla coda
             if(new_expiring->next == NULL) {
                 scroller->tail = new_expiring;
             }
@@ -317,6 +315,7 @@ void print_warehouse() {
 bool time_to_cook(Order_t* order, int day) {
     Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
 
+    // Finché gli ingredienti della ricetta non son finiti...
     while(recipe_ingredient != NULL) {
         int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
         Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
@@ -329,9 +328,6 @@ bool time_to_cook(Order_t* order, int day) {
             return false;
         }
 
-        // Linea di printf per il debugging
-        // printf("Ingredienti in magazzino: %d\nIngredienti necessari ricetta: %d\n", warehouse_ingredient->total_quantity, recipe_ingredient->quantity * order->quantity);
-
         // Verificando se la quantità totale è sufficiente
         if (warehouse_ingredient->total_quantity < recipe_ingredient->quantity * order->quantity) {
             return false;
@@ -343,33 +339,28 @@ bool time_to_cook(Order_t* order, int day) {
             Expiring_t* prev_expiring = NULL;
 
 
-            // aggiornamento della lista eliminando tutti gli elementi scaduti
-            while(scroller_expiring != NULL) {
-                if(scroller_expiring->expiring_date < day) {
-                    // Rimozione elemento scaduto
-                    if(prev_expiring == NULL) {
-                        // L'elemento da rimuovere è la testa della lista
-                        warehouse_ingredient->head = scroller_expiring->next;
-                        if(warehouse_ingredient->head == NULL) {
-                            // La lista diventa vuota, aggiorna anche la coda
-                            warehouse_ingredient->tail = NULL;
-                        }
-                    } else {
-                        // L'elemento da rimuovere non è la testa
-                        prev_expiring->next = scroller_expiring->next;
-                        if(prev_expiring->next == NULL) {
-                            // L'elemento rimosso era la coda
-                            warehouse_ingredient->tail = prev_expiring;
-                        }
+            // Aggiornamento della lista eliminando tutti gli elementi scaduti
+            while(scroller_expiring != NULL && scroller_expiring->expiring_date < day) {
+                // Rimozione elemento scaduto
+                if(prev_expiring == NULL) {
+                    // L'elemento da rimuovere è la testa della lista
+                    warehouse_ingredient->head = scroller_expiring->next;
+                    if(warehouse_ingredient->head == NULL) {
+                        // La lista diventa vuota, aggiorna anche la coda
+                        warehouse_ingredient->tail = NULL;
                     }
-                    Expiring_t* temp = scroller_expiring;
-                    warehouse_ingredient->total_quantity -= temp->quantity;
-                    scroller_expiring = scroller_expiring->next;
-                    free(temp);
                 } else {
-                    prev_expiring = scroller_expiring;
-                    scroller_expiring = scroller_expiring->next;
+                    // L'elemento da rimuovere non è la testa
+                    prev_expiring->next = scroller_expiring->next;
+                    if(prev_expiring->next == NULL) {
+                        // L'elemento rimosso era la coda
+                        warehouse_ingredient->tail = prev_expiring;
+                    }
                 }
+                Expiring_t* temp = scroller_expiring;
+                warehouse_ingredient->total_quantity -= temp->quantity;
+                scroller_expiring = scroller_expiring->next;
+                free(temp);
             }
 
             // Calcolo quantità necessaria, ed in caso affermativo, si procede alla preparazione
@@ -406,8 +397,8 @@ bool time_to_cook(Order_t* order, int day) {
                     // Non è stato possibile soddisfare l'ordine per mancanza di quantità sufficiente
                     return false;
                 }
-                
             }
+            
         }
         
         // Passa all'ingrediente successivo nella ricetta
@@ -470,10 +461,10 @@ void add_order_list(Order_list_t* list, Order_t* order) {
     }
 }
 
-Order_t* search_waiting_list(Order_list_t* list, char* recipe_name) {
+Order_t* search_list(Order_list_t* list, char* recipe_name) {
     Order_t* order_scroller = list->head;
 
-    while(order_scroller != NULL && strncmp(order_scroller->recipe->name, recipe_name, MAX_RECIPE_NAME)) {
+    while(order_scroller != NULL && strncmp(order_scroller->recipe->name, recipe_name, MAX_RECIPE_NAME) != 0) {
         order_scroller = order_scroller->next;
     }
 
@@ -598,7 +589,7 @@ void add_to_lorry(Order_t* order) {
             TODO:
                 in caso non serva, usare la moltiplicazione per una minore probabilità di reallocazione
         */
-        lorry.capacity += 5;
+        lorry.capacity *= 5;
         lorry.orders = (Order_t**)realloc(lorry.orders, sizeof(Order_t*) * lorry.capacity);
     }
     lorry.orders[lorry.size++] = order;
@@ -611,17 +602,26 @@ void add_to_lorry(Order_t* order) {
 */
 void load_lorry(Order_list_t* ready_list, int lorry_space) {
     Order_t* current_order = ready_list->head;
-    
+
     while(current_order != NULL && lorry_space > 0) {
         int order_weight = current_order->recipe->weight * current_order->quantity;
-        
+
         if(order_weight <= lorry_space) {
             lorry_space -= order_weight;
+
+            // Prima di rimuovere l'ordine dalla lista, viene salvato il prossimo ordine
+            Order_t* next_order = current_order->next;
+
+            // Rimozione dell'ordine corrente dalla lista
             Order_t* order_to_load = delete_order_list_element(ready_list, current_order);
             add_to_lorry(order_to_load);
+
+            // Avanzamento all'ordine successivo
+            current_order = next_order;
+        } else {
+            // Se l'ordine non può essere caricato, passa al successivo
+            current_order = current_order->next;
         }
-        
-        current_order = current_order->next;
     }
 
     return;
@@ -763,7 +763,7 @@ void manage_aggiungi_ricetta(char* line) {
 /*
     Funzione che implementa la lettura di rimuovi_ricetta
 */
-void manage_rimuovi_ricetta(char* line, Order_list_t* waiting_list) {
+void manage_rimuovi_ricetta(char* line, Order_list_t* ready_list, Order_list_t* waiting_list) {
     char* token;
     char recipe_name[MAX_RECIPE_NAME];
 
@@ -788,7 +788,7 @@ void manage_rimuovi_ricetta(char* line, Order_list_t* waiting_list) {
     if(recipe_to_delete == NULL) {
         printf("non presente\n");
     } else {
-        if(search_waiting_list(waiting_list, recipe_to_delete->name) == NULL) {
+        if(search_list(waiting_list, recipe_to_delete->name) == NULL && search_list(ready_list, recipe_to_delete->name) == NULL) {
             delete_hash_table_recipe(recipe_to_delete->name);
             free(recipe_to_delete);
             printf("rimossa\n");
@@ -915,7 +915,7 @@ void manage_line(char* line, int day, Order_list_t* ready_orders, Order_list_t* 
     if(strcmp(command, "aggiungi_ricetta") == 0) {
         manage_aggiungi_ricetta(line);
     } else if(strcmp(command, "rimuovi_ricetta") == 0) {
-        manage_rimuovi_ricetta(line, waiting_orders);
+        manage_rimuovi_ricetta(line, ready_orders, waiting_orders);
     } else if(strcmp(command, "ordine") == 0) {
         manage_ordine(line, day, ready_orders, waiting_orders);
     } else if(strcmp(command, "rifornimento") == 0) {
@@ -947,8 +947,8 @@ int main() {
         while((extra = fgetc(stdin) != '\n') && extra != EOF);
     }
 
-    // Inizializzazione del camioncino (della sua capacità)
-    init_lorry(capacity);
+    // Inizializzazione del camioncino
+    init_lorry(5);
 
     // Lettura dei comandi e loro gestione
     char* line = NULL;
@@ -956,7 +956,7 @@ int main() {
     int day = 0;
     while(getline(&line, &len, stdin) != -1) {
         // Controllo del camioncino
-        if(day % arrive_time == 0 && day != 0) {
+        if(day % arrive_time == 0 && day != 0 && arrive_time != 0) {
             load_lorry(&ready_orders, capacity);
             print_lorry();
         }
@@ -968,11 +968,11 @@ int main() {
         }
         manage_line(line, day, &ready_orders, &waiting_orders);
 
-
         day++;
     }
 
-    if(day % arrive_time == 0 && day != 0) {
+    // Controllo dovuto al fatto che si usa un ciclo while
+    if(day % arrive_time == 0 && day != 0 && arrive_time != 0) {
         load_lorry(&ready_orders, capacity);
         print_lorry();
     }
