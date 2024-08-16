@@ -461,6 +461,12 @@ void add_order_list(Order_list_t* list, Order_t* order) {
     }
 }
 
+/*
+    Funzione che cerca un elemento nella lista passata in ingresso per nome
+    Returns:
+        - NULL -> if not found
+        - Order_t -> if found
+*/
 Order_t* search_list(Order_list_t* list, char* recipe_name) {
     Order_t* order_scroller = list->head;
 
@@ -471,6 +477,43 @@ Order_t* search_list(Order_list_t* list, char* recipe_name) {
     return order_scroller;
 }
 
+/*
+    Funzione che stampa la lista di ordini pronti
+*/
+void print_ready_list(Order_list_t* ready_list) {
+    if (ready_list->head == NULL) {
+        printf("Lista degli ordini pronti è vuota\n");
+    } else {
+        printf("Ordini pronti:\n");
+        Order_t* current_order = ready_list->head;
+        while (current_order != NULL) {
+            printf("Ricetta = %s, Quantità = %d, Giorno di Arrivo = %d\n", current_order->recipe->name, current_order->quantity, current_order->day_of_arrive);
+            current_order = current_order->next;
+        }
+    }
+}
+
+/*
+    Funzione che stampa la lista di ordini in attesa
+*/
+void print_waiting_list(Order_list_t* waiting_list) {
+    if (waiting_list->head == NULL) {
+        printf("Lista degli ordini in attesa è vuota\n");
+    } else {
+        printf("Ordini in attesa:\n");
+        Order_t* current_order = waiting_list->head;
+        while (current_order != NULL) {
+            printf("Ricetta = %s, Quantità = %d, Giorno di Arrivo = %d\n", current_order->recipe->name, current_order->quantity, current_order->day_of_arrive);
+            current_order = current_order->next;
+        }
+    }
+}
+
+/*
+    Funzione che elimina un ordine dalla lista in ingresso, selezionando in base alla data d'arrivo
+    Returns:
+        - elemento eliminato
+*/
 Order_t* delete_order_list(Order_list_t* list, int day_of_arrive) {
     // Lista vuota
     if(list->head == NULL) {
@@ -516,6 +559,11 @@ Order_t* delete_order_list(Order_list_t* list, int day_of_arrive) {
     return order_scroller;
 }
 
+/*
+    Funzione che elimina un ordine passato in ingresso dalla lista passata in ingresso
+    Returns:
+        - elemento eliminato
+*/
 Order_t* delete_order_list_element(Order_list_t* list, Order_t* to_delete) {
     if(to_delete == NULL) {
         return NULL;
@@ -589,7 +637,7 @@ void add_to_lorry(Order_t* order) {
             TODO:
                 in caso non serva, usare la moltiplicazione per una minore probabilità di reallocazione
         */
-        lorry.capacity *= 5;
+        lorry.capacity += 5;
         lorry.orders = (Order_t**)realloc(lorry.orders, sizeof(Order_t*) * lorry.capacity);
     }
     lorry.orders[lorry.size++] = order;
@@ -603,7 +651,7 @@ void add_to_lorry(Order_t* order) {
 void load_lorry(Order_list_t* ready_list, int lorry_space) {
     Order_t* current_order = ready_list->head;
 
-    while(current_order != NULL && lorry_space > 0) {
+    while(current_order != NULL) {
         int order_weight = current_order->recipe->weight * current_order->quantity;
 
         if(order_weight <= lorry_space) {
@@ -619,8 +667,8 @@ void load_lorry(Order_list_t* ready_list, int lorry_space) {
             // Avanzamento all'ordine successivo
             current_order = next_order;
         } else {
-            // Se l'ordine non può essere caricato, passa al successivo
-            current_order = current_order->next;
+            // Se l'ordine non può essere caricato, interrompi il caricamento
+            break;
         }
     }
 
@@ -669,7 +717,6 @@ void print_lorry() {
         lorry.size = 0;
     }
 }
-
 
 // ------------------------------------
 // FUNZIONI PER LA GESTIONE DEI COMANDI
@@ -843,9 +890,6 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
     
     new_order->day_of_arrive = day;
 
-    /*
-        TODO: fix 'time_to_cook'
-    */
     if(time_to_cook(new_order, day) == true) {
         // aggiornamento lista ready
         add_order_list(ready_orders, new_order);
@@ -853,7 +897,6 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
         // aggiornamento lista waiting
         add_order_list(waiting_orders, new_order);
     }
-    // print_warehouse();
     printf("accettato\n");
 }
 
