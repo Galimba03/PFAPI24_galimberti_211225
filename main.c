@@ -232,7 +232,7 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
             Expiring_t* prev_expiring = NULL;
 
             // Aggiornamento della lista eliminando tutti gli elementi scaduti
-            while(scroller_expiring != NULL && scroller_expiring->expiring_date < day) {
+            while(scroller_expiring != NULL && scroller_expiring->expiring_date <= day) {
                 // Rimozione elemento scaduto
                 if(prev_expiring == NULL) {
                     // L'elemento da rimuovere è la testa della lista
@@ -340,7 +340,7 @@ bool time_to_cook(Order_t* order, int day) {
 
 
             // Aggiornamento della lista eliminando tutti gli elementi scaduti
-            while(scroller_expiring != NULL && scroller_expiring->expiring_date < day) {
+            while(scroller_expiring != NULL && scroller_expiring->expiring_date <= day) {
                 // Rimozione elemento scaduto
                 if(prev_expiring == NULL) {
                     // L'elemento da rimuovere è la testa della lista
@@ -371,7 +371,7 @@ bool time_to_cook(Order_t* order, int day) {
                 scroller_expiring = warehouse_ingredient->head;
 
                 while(scroller_expiring != NULL && required_quantity > 0) {
-                    if(scroller_expiring->quantity >= required_quantity) {
+                    if(scroller_expiring->quantity > required_quantity) {
                         // non devo "prosciugare tutto il lotto"
                         scroller_expiring->quantity -= required_quantity;
                         warehouse_ingredient->total_quantity -= required_quantity;
@@ -442,7 +442,7 @@ void add_order_list(Order_list_t* list, Order_t* order) {
     } else {
         // Inserimento in mezzo o in fondo
         if(order->day_of_arrive > list->tail->day_of_arrive) {
-            // Inserimento in fondo con salto di coda
+            // Inserimento in fondo direttamente in coda
             order->prev = list->tail;
             order->next = NULL;
             list->tail->next = order;
@@ -1000,6 +1000,12 @@ int main() {
     while(getline(&line, &len, stdin) != -1) {
         // Controllo del camioncino
         if(day % arrive_time == 0 && day != 0 && arrive_time != 0) {
+            printf("DAY: %d\n", day);
+            print_warehouse();
+            if(day == 80 || day == 100) {
+                print_ready_list(&ready_orders);
+                print_waiting_list(&waiting_orders);
+            }
             load_lorry(&ready_orders, capacity);
             print_lorry();
         }
