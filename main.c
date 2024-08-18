@@ -231,29 +231,37 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
             Expiring_t* scroller_expiring = scroller->head;
             Expiring_t* prev_expiring = NULL;
 
-            // Aggiornamento della lista eliminando tutti gli elementi scaduti
-            while(scroller_expiring != NULL && scroller_expiring->expiring_date <= day) {
+            // Aggiornamento della lista eliminando tutti gli elementi scaduti + posizionamento nel magazzino in ordine di scadenza
+            while(scroller_expiring != NULL && scroller_expiring->expiring_date < expiring_date) {
                 // Rimozione elemento scaduto
-                if(prev_expiring == NULL) {
-                    // L'elemento da rimuovere è la testa della lista
-                    scroller->head = scroller_expiring->next;
-                    if(scroller->head == NULL) {
-                        // La lista diventa vuota, aggiorna anche la coda
-                        scroller->tail = NULL;
+                if(scroller_expiring->expiring_date <= day) {
+                    // Rimozione degli elementi scaduti
+                    if(prev_expiring == NULL) {
+                        // L'elemento da rimuovere è la testa della lista
+                        scroller->head = scroller_expiring->next;
+                        if(scroller->head == NULL) {
+                            // La lista diventa vuota, aggiorna anche la coda
+                            scroller->tail = NULL;
+                        }
+                    } else {
+                        // L'elemento da rimuovere non è la testa -> o è in mezzo o è la coda
+                        prev_expiring->next = scroller_expiring->next;
+                        if(prev_expiring->next == NULL) {
+                            // L'elemento rimosso era la coda
+                            scroller->tail = prev_expiring;
+                        }
                     }
+
+                    Expiring_t* temp = scroller_expiring;
+                    scroller->total_quantity -= temp->quantity;
+                    scroller_expiring = scroller_expiring->next;
+                    free(temp);
                 } else {
-                    // L'elemento da rimuovere non è la testa -> o è in mezzo o è la coda
-                    prev_expiring->next = scroller_expiring->next;
-                    if(prev_expiring->next == NULL) {
-                        // L'elemento rimosso era la coda
-                        scroller->tail = prev_expiring;
-                    }
+                    // Terminata fase 'rimozione scaduti'
+                    prev_expiring = scroller_expiring;
+                    scroller_expiring = scroller_expiring->next;
                 }
 
-                Expiring_t* temp = scroller_expiring;
-                scroller->total_quantity -= temp->quantity;
-                scroller_expiring = scroller_expiring->next;
-                free(temp);
             }
 
             // Fase di inserimento dell'elemento
@@ -307,15 +315,14 @@ void print_warehouse() {
 }
 
 /*
-    Funzione che controlla se l'ordine è realizzabile. Se lo è aggiorna il magazzino togliendogli tutti gli elementi necessari alla realizzazione della ricetta
+    Funzione che controlla se la ricetta è realizzabile cancellando anche gli ingredienti scaduti
     Returns:
-        false -> non realizzabile
-        true -> realizzabile e realizzato
+        - false -> non realizzabile
+        - true -> realizzabile
 */
-bool time_to_cook(Order_t* order, int day) {
+bool check_warehouse(Order_t* order, int day) {
     Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
 
-    // Finché gli ingredienti della ricetta non son finiti...
     while(recipe_ingredient != NULL) {
         int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
         Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
@@ -362,41 +369,86 @@ bool time_to_cook(Order_t* order, int day) {
                 scroller_expiring = scroller_expiring->next;
                 free(temp);
             }
+        }
+
+        // Calcolo quantità necessaria
+        int required_quantity = recipe_ingredient->quantity * order->quantity;
+        if(warehouse_ingredient->total_quantity < required_quantity) {
+            return false;
+        }
+
+        // Passa all'ingrediente successivo nella ricetta
+        recipe_ingredient = recipe_ingredient->next;
+
+    }
+    return true;
+}
+
+
+/*
+    Funzione che controlla se l'ordine è realizzabile. Se lo è aggiorna il magazzino togliendogli tutti gli elementi necessari alla realizzazione della ricetta
+    Returns:
+        false -> non realizzabile
+        true -> realizzabile e realizzato
+*/
+bool time_to_cook(Order_t* order, int day) {
+    if(check_warehouse(order, day) == false) {
+        return false;
+    }
+
+    Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
+    // Finché gli ingredienti della ricetta non son finiti...
+    while(recipe_ingredient != NULL) {
+        int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
+        Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
+
+        while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
+            warehouse_ingredient = warehouse_ingredient->next;
+        }
+
+        if (warehouse_ingredient == NULL) {
+            return false;
+        }
+
+        // Verificando se la quantità totale è sufficiente
+        if (warehouse_ingredient->total_quantity < recipe_ingredient->quantity * order->quantity) {
+            return false;
+        }
+
+        if(warehouse_ingredient->head != NULL){
+            // Controllo e rimozione degli ingredienti scaduti
+            Expiring_t* scroller_expiring = warehouse_ingredient->head;
 
             // Calcolo quantità necessaria, ed in caso affermativo, si procede alla preparazione
             int required_quantity = recipe_ingredient->quantity * order->quantity;
-            if(warehouse_ingredient->total_quantity < required_quantity) {
-                return false;
-            } else {
-                scroller_expiring = warehouse_ingredient->head;
+            scroller_expiring = warehouse_ingredient->head;
 
-                while(scroller_expiring != NULL && required_quantity > 0) {
-                    if(scroller_expiring->quantity > required_quantity) {
-                        // non devo "prosciugare tutto il lotto"
-                        scroller_expiring->quantity -= required_quantity;
-                        warehouse_ingredient->total_quantity -= required_quantity;
-                        required_quantity = 0;
-                    } else {
-                        // devo "prosciugare" tutto il lotto
-                        required_quantity -= scroller_expiring->quantity;
-                        warehouse_ingredient->total_quantity -= scroller_expiring->quantity;
+            while(scroller_expiring != NULL && required_quantity > 0) {
+                if(scroller_expiring->quantity > required_quantity) {
+                    // non devo "prosciugare tutto il lotto"
+                    scroller_expiring->quantity -= required_quantity;
+                    warehouse_ingredient->total_quantity -= required_quantity;
+                    required_quantity = 0;
+                } else {
+                    // devo "prosciugare" tutto il lotto
+                    required_quantity -= scroller_expiring->quantity;
+                    warehouse_ingredient->total_quantity -= scroller_expiring->quantity;
 
-                        Expiring_t* temp = scroller_expiring;
-                        scroller_expiring = scroller_expiring->next;
-                        free(temp);
+                    Expiring_t* temp = scroller_expiring;
+                    scroller_expiring = scroller_expiring->next;
+                    free(temp);
 
-                        warehouse_ingredient->head = scroller_expiring;
+                    warehouse_ingredient->head = scroller_expiring;
 
-                        if(scroller_expiring == NULL) {
-                            warehouse_ingredient->tail = NULL;
-                        }
+                    if(scroller_expiring == NULL) {
+                        warehouse_ingredient->tail = NULL;
                     }
                 }
+            }
 
-                if(required_quantity > 0) {
-                    // Non è stato possibile soddisfare l'ordine per mancanza di quantità sufficiente
-                    return false;
-                }
+            if(required_quantity > 0) {
+                // Non è stato possibile soddisfare l'ordine per mancanza di quantità sufficiente
+                return false;
             }
             
         }
@@ -597,6 +649,9 @@ Order_t* delete_order_list_element(Order_list_t* list, Order_t* to_delete) {
     return to_delete;
 }
 
+/*
+    Funzione che cucina gli ordini in attesa
+*/
 void cook_waiting(Order_list_t* ready_list, Order_list_t* waiting_list, int day) {
     Order_t* scroller = waiting_list->head;
 
@@ -1000,12 +1055,6 @@ int main() {
     while(getline(&line, &len, stdin) != -1) {
         // Controllo del camioncino
         if(day % arrive_time == 0 && day != 0 && arrive_time != 0) {
-            printf("DAY: %d\n", day);
-            print_warehouse();
-            if(day == 80 || day == 100) {
-                print_ready_list(&ready_orders);
-                print_waiting_list(&waiting_orders);
-            }
             load_lorry(&ready_orders, capacity);
             print_lorry();
         }
