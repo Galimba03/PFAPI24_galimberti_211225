@@ -7,22 +7,19 @@
 
 #define MAX_COMMAND_LENGTH 20
 
-#define MAX_INGREDIENT_NAME 255
-#define MAX_RECIPE_NAME 255
-
-#define RP_TABLE_SIZE 25
-#define WH_TABLE_SIZE 50
+#define RP_TABLE_SIZE 50
+#define WH_TABLE_SIZE 100
 
 // Strutture per le ricette e gli ingredienti che le contengono
 typedef struct ingredient_recipe {
-    char name[MAX_INGREDIENT_NAME];
+    char *name;
     int quantity;
 
     struct ingredient_recipe* next;
 } Ingredient_recipe_t;
 
 typedef struct recipe {
-    char name[MAX_RECIPE_NAME];
+    char *name;
     int weight;
 
     Ingredient_recipe_t* head;
@@ -53,7 +50,7 @@ typedef struct expiring {
 } Expiring_t;
 
 typedef struct ingredient_warehouse {
-    char name[MAX_INGREDIENT_NAME];
+    char *name;
     int total_quantity;
 
     Expiring_t* head;
@@ -72,12 +69,6 @@ Lorry_t lorry;
 
 
 // -----------------------------------------
-
-/*
-    Funzione che crea l'indice della tabella di hash in cui andra' ad essere inserito il valore
-    Returns:
-        unsigned int = indice in cui verra' posizionato il valore nella tabella di hash
-*/
 unsigned int hash_function(char* name, int hash_table_dim) {
     int length = strnlen(name, MAX_RECIPE_NAME);
     unsigned int hash_value = 0;
@@ -93,21 +84,12 @@ unsigned int hash_function(char* name, int hash_table_dim) {
 // --------------------------------------------------
 Recipe_t* hash_table_recipe[RP_TABLE_SIZE];
 
-/*
-    Funzione che inizializza la tabella di hash delle ricette
-*/
 void init_hash_table_recipe() {
     for(int i = 0; i < RP_TABLE_SIZE; i++){
         hash_table_recipe[i] = NULL;
     }
 }
 
-/*
-    Funzione che inizializza la funzione hash
-    Returns:
-        false -> no errors
-        true -> errors
-*/
 bool add_hash_table_recipe(Recipe_t* recipe) {
     if(recipe == NULL) {
         return true;
@@ -119,11 +101,6 @@ bool add_hash_table_recipe(Recipe_t* recipe) {
     return false;
 }
 
-/*
-    Funzione che cerca se un elemento con il nome corrispondere e' gia' presente all'interno della hash table delle ricette
-    Returns:
-        ritorna il valore dell'elemento trovato all'interno della hash table. Nel caso in cui sia 'NULL', allora significa che l'elemento non è stato trovato
-*/
 Recipe_t* search_hash_table_recipe(char* recipe_name) {
     int index = hash_function(recipe_name, RP_TABLE_SIZE);
     Recipe_t* temp = hash_table_recipe[index];
@@ -159,26 +136,30 @@ Recipe_t* delete_hash_table_recipe(char* recipe_name) {
     return temp;
 }
 
+void free_hash_table_recipe() {
+    for(int i = 0; i < RP_TABLE_SIZE; i++){
+        Recipe_t* recipe = hash_table_recipe[i];
+        while(recipe != NULL) {
+            Recipe_t* recipe_to_delete = recipe;
+            recipe = recipe->next;
+            free(recipe_to_delete);
+        }
+    }
+
+    return;
+}
+
 // ----------------------------------------
 // FUNZIONI PER LA HASH TABLE DEL MAGAZZINO
 // ----------------------------------------
 Ingredient_warehouse_t* hash_table_warehouse[WH_TABLE_SIZE];
 
-/*
-    Funzione che inizializza la tabella di hash del magazzino
-*/
 void init_hash_table_warehouse() {
     for(int i = 0; i < WH_TABLE_SIZE; i++){
         hash_table_warehouse[i] = NULL;
     }
 }
 
-/*
-    Funzione che inizializza la funzione hash
-    Returns:
-        false -> no errors
-        true -> errors
-*/
 bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, int expiring_date, int day) {
     if(quantity <= 0 || expiring_date < 0) {
         return true;
@@ -287,39 +268,6 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
     return false;
 }
 
-/*
-    Funzione per la stampa del magazzino e di tutte le scadenze
-*/
-void print_warehouse() {
-    printf("START\n");
-    for(int i = 0; i < WH_TABLE_SIZE; i++) {
-        if(hash_table_warehouse[i] != NULL) {
-            Ingredient_warehouse_t* current_ingredient = hash_table_warehouse[i];
-            printf("%d :\n", i);
-            while(current_ingredient != NULL) {
-                printf("    %s -> ", current_ingredient->name);
-                Expiring_t* current_expiring = current_ingredient->head;
-                while(current_expiring != NULL) {
-                    printf("%d (scadenza: %d)", current_expiring->quantity, current_expiring->expiring_date);
-                    current_expiring = current_expiring->next;
-                    if (current_expiring != NULL) {
-                        printf(", ");
-                    }
-                }
-                printf("\n");
-                current_ingredient = current_ingredient->next;
-            }
-        }
-    }
-    printf("END\n");
-}
-
-/*
-    Funzione che controlla se la ricetta è realizzabile cancellando anche gli ingredienti scaduti
-    Returns:
-        - false -> non realizzabile
-        - true -> realizzabile
-*/
 bool check_warehouse(Order_t* order, int day) {
     Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
 
@@ -384,13 +332,6 @@ bool check_warehouse(Order_t* order, int day) {
     return true;
 }
 
-
-/*
-    Funzione che controlla se l'ordine è realizzabile. Se lo è aggiorna il magazzino togliendogli tutti gli elementi necessari alla realizzazione della ricetta
-    Returns:
-        false -> non realizzabile
-        true -> realizzabile e realizzato
-*/
 bool time_to_cook(Order_t* order, int day) {
     if(check_warehouse(order, day) == false) {
         return false;
@@ -460,24 +401,27 @@ bool time_to_cook(Order_t* order, int day) {
     return true;
 }
 
+void free_hash_table_warehouse() {
+    for(int i = 0; i < WH_TABLE_SIZE; i++){
+        Ingredient_warehouse_t* ingredient = hash_table_warehouse[i];
+        while(ingredient != NULL) {
+            Ingredient_warehouse_t* ingredient_to_delete = ingredient;
+            ingredient = ingredient->next;
+            free(ingredient_to_delete);
+        }
+    }
+
+    return;
+}
+
 // -------------------------------------
 // FUNZIONI PER LA GESTIONE DEGLI ORDINI
 // -------------------------------------
-/*
-    Funzione che inizializza una lista necessaria per gli ordini, che sia lista degli ordini pronti o degli ordini in attesa di preparazione
-*/
 void init_order_list(Order_list_t* list) {
     list->head = NULL;
     list->tail = NULL;
 }
 
-/*
-    Funzione che aggiunge in coda alla lista un nuovo elemento
-*/
-/*
-    TODO:
-        migliorarla man mano che vanno avanti le specifiche del progetto
-*/
 void add_order_list(Order_list_t* list, Order_t* order) {
     if(list->head == NULL || list->head->day_of_arrive > order->day_of_arrive) {
         // Inserimento in testa
@@ -513,12 +457,6 @@ void add_order_list(Order_list_t* list, Order_t* order) {
     }
 }
 
-/*
-    Funzione che cerca un elemento nella lista passata in ingresso per nome
-    Returns:
-        - NULL -> if not found
-        - Order_t -> if found
-*/
 Order_t* search_list(Order_list_t* list, char* recipe_name) {
     Order_t* order_scroller = list->head;
 
@@ -529,93 +467,6 @@ Order_t* search_list(Order_list_t* list, char* recipe_name) {
     return order_scroller;
 }
 
-/*
-    Funzione che stampa la lista di ordini pronti
-*/
-void print_ready_list(Order_list_t* ready_list) {
-    if (ready_list->head == NULL) {
-        printf("Lista degli ordini pronti è vuota\n");
-    } else {
-        printf("Ordini pronti:\n");
-        Order_t* current_order = ready_list->head;
-        while (current_order != NULL) {
-            printf("Ricetta = %s, Quantità = %d, Giorno di Arrivo = %d\n", current_order->recipe->name, current_order->quantity, current_order->day_of_arrive);
-            current_order = current_order->next;
-        }
-    }
-}
-
-/*
-    Funzione che stampa la lista di ordini in attesa
-*/
-void print_waiting_list(Order_list_t* waiting_list) {
-    if (waiting_list->head == NULL) {
-        printf("Lista degli ordini in attesa è vuota\n");
-    } else {
-        printf("Ordini in attesa:\n");
-        Order_t* current_order = waiting_list->head;
-        while (current_order != NULL) {
-            printf("Ricetta = %s, Quantità = %d, Giorno di Arrivo = %d\n", current_order->recipe->name, current_order->quantity, current_order->day_of_arrive);
-            current_order = current_order->next;
-        }
-    }
-}
-
-/*
-    Funzione che elimina un ordine dalla lista in ingresso, selezionando in base alla data d'arrivo
-    Returns:
-        - elemento eliminato
-*/
-Order_t* delete_order_list(Order_list_t* list, int day_of_arrive) {
-    // Lista vuota
-    if(list->head == NULL) {
-        return NULL;
-    }
-
-    Order_t* order_scroller = list->head;
-
-    // Cerca l'ordine con il rispettivo ordine di arrivo
-    while(order_scroller != NULL && order_scroller->day_of_arrive != day_of_arrive) {
-        order_scroller = order_scroller->next;
-    }
-
-    if(order_scroller == NULL) {
-        return NULL;
-    }
-
-    // Cancellazione dell'ordine
-    if(order_scroller == list->head) {
-        // Ordine in testa alla lista
-        list->head = order_scroller->next;
-        if(list->head != NULL) {
-            list->head->prev = NULL;
-        } else {
-            // Lista è vuota
-            list->tail = NULL;
-        }
-    } else {
-        if(order_scroller == list->tail) {
-            // Ordine in coda alla lista
-            list->tail = order_scroller->prev;
-            if(list->tail != NULL) {
-                list->tail->next = NULL;
-            }
-        } else {
-            // Ordine in mezzo alla lista
-            order_scroller->prev->next = order_scroller->next;
-            order_scroller->next->prev = order_scroller->prev;
-        }
-        
-    }
-    
-    return order_scroller;
-}
-
-/*
-    Funzione che elimina un ordine passato in ingresso dalla lista passata in ingresso
-    Returns:
-        - elemento eliminato
-*/
 Order_t* delete_order_list_element(Order_list_t* list, Order_t* to_delete) {
     if(to_delete == NULL) {
         return NULL;
@@ -649,9 +500,6 @@ Order_t* delete_order_list_element(Order_list_t* list, Order_t* to_delete) {
     return to_delete;
 }
 
-/*
-    Funzione che cucina gli ordini in attesa
-*/
 void cook_waiting(Order_list_t* ready_list, Order_list_t* waiting_list, int day) {
     Order_t* scroller = waiting_list->head;
 
@@ -670,39 +518,60 @@ void cook_waiting(Order_list_t* ready_list, Order_list_t* waiting_list, int day)
     return;
 }
 
+void free_orders(Order_list_t* ready_list, Order_list_t* waiting_list) {
+    Order_t* order_to_delete;
+
+    // Pulizia ordini lista ready
+    Order_t* order = ready_list->head;
+
+    while(order != NULL) {
+        order_to_delete = order;
+        order = order->next;
+        free(order_to_delete);
+    }
+
+    // Pulizia ordini lista wait
+    order = waiting_list->head;
+    while(order != NULL) {
+        order_to_delete = order;
+        order = order->next;
+        free(order_to_delete);
+    }
+
+    return;
+}
+
 // ----------------------------------------
 // FUNZIONI PER IL CONTROLLO DEL CAMIONCINO
 // ----------------------------------------
-/*
-    Funzione che inizializza il camioncino della dimensione scelta
-*/
-void init_lorry(int initial_capacity) {
-    lorry.orders = (Order_t**)malloc(sizeof(Order_t*) * initial_capacity);
+void init_lorry() {
     lorry.size = 0;
-    lorry.capacity = initial_capacity;
+    lorry.capacity = 5;
+    lorry.orders = malloc(sizeof(Order_t*) * lorry.capacity);
 }
 
-/*
-    Funzione che aggiunge al camioncino un ordine, e se serve ne aumenta la dimensione
-*/
-void add_to_lorry(Order_t* order) {
+void resize_lorry() {
+    lorry.capacity *= 2;
+    lorry.orders = realloc(lorry.orders, sizeof(Order_t*) * lorry.capacity);
+}
+
+void add_order_to_lorry(Order_t* order) {
     if(lorry.size >= lorry.capacity) {
         // Incremento della dimensione del camioncino di 5
-        /*
-            TODO:
-                in caso non serva, usare la moltiplicazione per una minore probabilità di reallocazione
-        */
-        lorry.capacity += 5;
-        lorry.orders = (Order_t**)realloc(lorry.orders, sizeof(Order_t*) * lorry.capacity);
+        resize_lorry();
     }
     lorry.orders[lorry.size++] = order;
 
     return;
 }
 
-/*
-    Funzione per il caricamento del camioncino
-*/
+void free_lorry() {
+    free(lorry.orders);
+    lorry.orders = NULL;
+    lorry.size = 0;
+    lorry.capacity = 0;
+}
+
 void load_lorry(Order_list_t* ready_list, int lorry_space) {
     Order_t* current_order = ready_list->head;
 
@@ -717,7 +586,7 @@ void load_lorry(Order_list_t* ready_list, int lorry_space) {
 
             // Rimozione dell'ordine corrente dalla lista
             Order_t* order_to_load = delete_order_list_element(ready_list, current_order);
-            add_to_lorry(order_to_load);
+            add_order_to_lorry(order_to_load);
 
             // Avanzamento all'ordine successivo
             current_order = next_order;
@@ -730,10 +599,6 @@ void load_lorry(Order_list_t* ready_list, int lorry_space) {
     return;
 }
 
-
-/*
-    Insertion sort per riordinare gli elementi del camioncino in ordine di peso
-*/
 void insertion_sort_weight(Order_t* orders[], int n) {
     for(int i = 1; i < n; i++) {
         Order_t* key = orders[i];
@@ -747,9 +612,6 @@ void insertion_sort_weight(Order_t* orders[], int n) {
     }
 }
 
-/*
-    Funzione per la stampa in ordine di peso degli elementi del camioncino
-*/
 void print_lorry() {
     if(lorry.size == 0) {
         printf("camioncino vuoto\n");
@@ -776,11 +638,13 @@ void print_lorry() {
 // ------------------------------------
 // FUNZIONI PER LA GESTIONE DEI COMANDI
 // ------------------------------------
-/*
-    Funzione che inserisce nella ricetta un nuovo ingrediente. Gestisce correttamente la lista
-*/
 void add_ingredient_recipe(Recipe_t* recipe, char* name, int quantity) {
     Ingredient_recipe_t* ingredient = (Ingredient_recipe_t*)malloc(sizeof(Ingredient_recipe_t));
+    ingredient->name = (char*)malloc((strlen(name) + 1) * sizeof(char));
+    if(ingredient->name == NULL){
+        printf("Errore: errata allocazione memoria.\n");
+        return;
+    }
     strcpy(ingredient->name, name);
     ingredient->quantity = quantity;
     ingredient->next = NULL;
@@ -794,11 +658,10 @@ void add_ingredient_recipe(Recipe_t* recipe, char* name, int quantity) {
         }
         scroller->next = ingredient;
     }
+
+    return;
 }
 
-/*
-    Funzione che implementa la lettura di aggiungi_ricetta
-*/
 void manage_aggiungi_ricetta(char* line) {
     char* token;
 
@@ -818,11 +681,12 @@ void manage_aggiungi_ricetta(char* line) {
 
     Recipe_t* new_recipe = (Recipe_t*)malloc(sizeof(Recipe_t));
     if(new_recipe == NULL) {
-        printf("Errore di allocazione della memoria\n");
+        printf("Errore: errata allocazione della memoria\n");
         return;
     }
+    new_recipe->name = (char*)malloc((strlen(token) + 1) * sizeof(char));
     strcpy(new_recipe->name, token);
-    new_recipe->name[MAX_RECIPE_NAME - 1] = '\0';
+    // new_recipe->name[MAX_RECIPE_NAME - 1] = '\0';
     new_recipe->weight = 0;
     new_recipe->head = NULL;
 
@@ -834,11 +698,11 @@ void manage_aggiungi_ricetta(char* line) {
 
     // Lettura degli ingredienti e delle loro quantità
     while((token = strtok(NULL, " ")) != NULL) {
-        char ingredient_name[MAX_INGREDIENT_NAME];
+        char* ingredient_name;
         int quantity;
 
         strcpy(ingredient_name, token);
-        ingredient_name[MAX_INGREDIENT_NAME - 1] = '\0';
+        // ingredient_name[MAX_INGREDIENT_NAME - 1] = '\0';
 
         token = strtok(NULL, " ");
         if(token == NULL) {
@@ -859,15 +723,13 @@ void manage_aggiungi_ricetta(char* line) {
         free(new_recipe);
         return;
     }
+
     printf("aggiunta\n");
 }
 
-/*
-    Funzione che implementa la lettura di rimuovi_ricetta
-*/
 void manage_rimuovi_ricetta(char* line, Order_list_t* ready_list, Order_list_t* waiting_list) {
     char* token;
-    char recipe_name[MAX_RECIPE_NAME];
+    char* recipe_name;
 
     // Salta il comando "rimuovi_ricetta"
     token = strtok(line, " ");
@@ -882,6 +744,7 @@ void manage_rimuovi_ricetta(char* line, Order_list_t* ready_list, Order_list_t* 
         printf("Errore: nome della ricetta mancante.\n");
         return;
     }
+    
     strcpy(recipe_name, token);
     recipe_name[MAX_RECIPE_NAME - 1] = '\0';
 
@@ -901,9 +764,6 @@ void manage_rimuovi_ricetta(char* line, Order_list_t* ready_list, Order_list_t* 
     
 }
 
-/*
-    Funzione che implementa la lettura di ordine
-*/
 void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
     char* token;
     char recipe_name[MAX_RECIPE_NAME];
@@ -955,9 +815,6 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
     printf("accettato\n");
 }
 
-/*
-    Funzione che implementa la lettura di rifornimento
-*/
 void manage_rifornimento(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
     char* token;
 
@@ -992,18 +849,11 @@ void manage_rifornimento(char* line, int day, Order_list_t* ready_orders, Order_
         update_and_add_hash_table_warehouse(ingredient_name, quantity, expiring_date, day);
     }
     printf("rifornito\n");
-    /*
-        TODO:
-            Implementare la preparazione di tutti quegli ordini che stanno in attesa
-    */
     cook_waiting(ready_orders, waiting_orders, day);
 }
 
-/*
-    Funzione che dato in input una stringa gestisce il tipo di comando assegnato mediante input stdin
-*/
 void manage_line(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
-    char command[MAX_COMMAND_LENGTH];
+    char* command;
 
     if(sscanf(line, "%s", command) != 1) {
         printf("Errore: lettura del comando\n");
@@ -1027,12 +877,14 @@ int main() {
     init_hash_table_recipe();
     init_hash_table_warehouse();
 
-    // inizializzazione delle liste per gli ordini
+    // Inizializzazione delle liste per gli ordini
     Order_list_t ready_orders;
     Order_list_t waiting_orders;
     init_order_list(&ready_orders);
     init_order_list(&waiting_orders);
 
+    // Inizializzazione camioncino
+    init_lorry();
 
     // Lettura della periodicità d'arrivo e lettura dello spazio a disposizione del camioncino
     int arrive_time, capacity;
@@ -1045,14 +897,11 @@ int main() {
         while((extra = fgetc(stdin) != '\n') && extra != EOF);
     }
 
-    // Inizializzazione del camioncino
-    init_lorry(5);
-
     // Lettura dei comandi e loro gestione
     char* line = NULL;
     size_t len = 0;
     int day = 0;
-    while(getline(&line, &len, stdin) != -1) {
+    while(fgets(&line, &len, stdin) != -1) {
         // Controllo del camioncino
         if(day % arrive_time == 0 && day != 0 && arrive_time != 0) {
             load_lorry(&ready_orders, capacity);
@@ -1074,15 +923,17 @@ int main() {
         load_lorry(&ready_orders, capacity);
         print_lorry();
     }
-    
+
     // Pulizia della linea
     free(line);
 
     // Pulizia del camioncino
-    free(lorry.orders);
-    lorry.orders = NULL;
-    lorry.size = 0;
-    lorry.capacity = 0;
+    free_lorry();
+
+    // Pulizia generale
+    free_hash_table_recipe();
+    free_hash_table_warehouse();
+    free_orders(&ready_orders, &waiting_orders);
 
     return 0;
 }
