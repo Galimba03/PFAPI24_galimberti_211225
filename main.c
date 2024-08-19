@@ -122,7 +122,8 @@ bool add_hash_table_recipe(Recipe_t* recipe) {
 /*
     Funzione che cerca se un elemento con il nome corrispondere e' gia' presente all'interno della hash table delle ricette
     Returns:
-        ritorna il valore dell'elemento trovato all'interno della hash table. Nel caso in cui sia 'NULL', allora significa che l'elemento non è stato trovato
+        - Recipe_t =    NULL, se non trovata
+                        ricetta, se trovata
 */
 Recipe_t* search_hash_table_recipe(char* recipe_name) {
     int index = hash_function(recipe_name, RP_TABLE_SIZE);
@@ -135,6 +136,12 @@ Recipe_t* search_hash_table_recipe(char* recipe_name) {
     return temp;
 }
 
+/*
+    Funzione che elimina dalla hash table la ricetta inserita in ingresso
+    Returns:
+        - Recipe_t =    NULL, se ricetta non presente
+                        ricetta, se eliminata dalla tabella
+*/
 Recipe_t* delete_hash_table_recipe(char* recipe_name) {
     int index = hash_function(recipe_name, RP_TABLE_SIZE);
     Recipe_t* temp = hash_table_recipe[index];
@@ -733,6 +740,10 @@ void load_lorry(Order_list_t* ready_list, int lorry_space) {
 
 /*
     Insertion sort per riordinare gli elementi del camioncino in ordine di peso
+*/
+/*
+    TODO:
+        cambiare il tipo di algoritmo di riordinamento nel caso in cui non sia sufficiente
 */
 void insertion_sort_weight(Order_t* orders[], int n) {
     for(int i = 1; i < n; i++) {
