@@ -7,6 +7,9 @@
 
 #define MAX_COMMAND_LENGTH 20
 
+#define MAX_INGREDIENT_NAME 255
+#define MAX_RECIPE_NAME 255
+
 #define RP_TABLE_SIZE 50
 #define WH_TABLE_SIZE 100
 
@@ -136,19 +139,6 @@ Recipe_t* delete_hash_table_recipe(char* recipe_name) {
     return temp;
 }
 
-void free_hash_table_recipe() {
-    for(int i = 0; i < RP_TABLE_SIZE; i++){
-        Recipe_t* recipe = hash_table_recipe[i];
-        while(recipe != NULL) {
-            Recipe_t* recipe_to_delete = recipe;
-            recipe = recipe->next;
-            free(recipe_to_delete);
-        }
-    }
-
-    return;
-}
-
 // ----------------------------------------
 // FUNZIONI PER LA HASH TABLE DEL MAGAZZINO
 // ----------------------------------------
@@ -177,6 +167,12 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, in
         scroller = (Ingredient_warehouse_t*)malloc(sizeof(Ingredient_warehouse_t));
         if(scroller == NULL) {
             printf("Errore: allocazione della memoria.\n");
+            return true;
+        }
+        scroller->name = (char*)malloc((strlen(ingredient_name) + 1) * sizeof(char));
+        if(scroller->name == NULL) {
+            printf("Errore: allocazione memoria\n");
+            free(scroller);
             return true;
         }
         strcpy(scroller->name, ingredient_name);
@@ -401,19 +397,6 @@ bool time_to_cook(Order_t* order, int day) {
     return true;
 }
 
-void free_hash_table_warehouse() {
-    for(int i = 0; i < WH_TABLE_SIZE; i++){
-        Ingredient_warehouse_t* ingredient = hash_table_warehouse[i];
-        while(ingredient != NULL) {
-            Ingredient_warehouse_t* ingredient_to_delete = ingredient;
-            ingredient = ingredient->next;
-            free(ingredient_to_delete);
-        }
-    }
-
-    return;
-}
-
 // -------------------------------------
 // FUNZIONI PER LA GESTIONE DEGLI ORDINI
 // -------------------------------------
@@ -513,29 +496,6 @@ void cook_waiting(Order_list_t* ready_list, Order_list_t* waiting_list, int day)
         }
 
         scroller = next_order;
-    }
-
-    return;
-}
-
-void free_orders(Order_list_t* ready_list, Order_list_t* waiting_list) {
-    Order_t* order_to_delete;
-
-    // Pulizia ordini lista ready
-    Order_t* order = ready_list->head;
-
-    while(order != NULL) {
-        order_to_delete = order;
-        order = order->next;
-        free(order_to_delete);
-    }
-
-    // Pulizia ordini lista wait
-    order = waiting_list->head;
-    while(order != NULL) {
-        order_to_delete = order;
-        order = order->next;
-        free(order_to_delete);
     }
 
     return;
@@ -684,42 +644,55 @@ void manage_aggiungi_ricetta(char* line) {
         printf("Errore: errata allocazione della memoria\n");
         return;
     }
+
     new_recipe->name = (char*)malloc((strlen(token) + 1) * sizeof(char));
+    if(new_recipe->name == NULL){
+        printf("Errore: errata allocazione della memoria\n");
+        free(new_recipe);
+        return;
+    }
+
     strcpy(new_recipe->name, token);
-    // new_recipe->name[MAX_RECIPE_NAME - 1] = '\0';
     new_recipe->weight = 0;
     new_recipe->head = NULL;
 
     if(search_hash_table_recipe(new_recipe->name) != NULL) {
+        free(new_recipe->name);
         free(new_recipe);
         printf("ignorato\n");
         return;
     }
-
+    
     // Lettura degli ingredienti e delle loro quantità
     while((token = strtok(NULL, " ")) != NULL) {
-        char* ingredient_name;
-        int quantity;
-
+        char* ingredient_name = (char*)malloc((strlen(token) + 1) * sizeof(char));
+        if(ingredient_name == NULL) {
+            printf("Errore: errata allocazione della memoria\n");
+            free(new_recipe->name);
+            free(new_recipe);
+            return;
+        }
         strcpy(ingredient_name, token);
-        // ingredient_name[MAX_INGREDIENT_NAME - 1] = '\0';
 
         token = strtok(NULL, " ");
         if(token == NULL) {
             printf("Errore: quantità dell'ingrediente '%s' mancante.\n", ingredient_name);
+            free(ingredient_name);
+            free(new_recipe->name);
             free(new_recipe);
             return;
         }
-        quantity = atoi(token);
+        int quantity = atoi(token);
 
         add_ingredient_recipe(new_recipe, ingredient_name, quantity);
         new_recipe->weight += quantity;
 
+        free(ingredient_name);
     }
 
-    // Aggiunta della ricetta alla tabella di hash
     if(add_hash_table_recipe(new_recipe) == true) {
         printf("Errore: inserimento nella tabella di hash fallito.\n");
+        free(new_recipe->name);
         free(new_recipe);
         return;
     }
@@ -729,7 +702,6 @@ void manage_aggiungi_ricetta(char* line) {
 
 void manage_rimuovi_ricetta(char* line, Order_list_t* ready_list, Order_list_t* waiting_list) {
     char* token;
-    char* recipe_name;
 
     // Salta il comando "rimuovi_ricetta"
     token = strtok(line, " ");
@@ -744,29 +716,35 @@ void manage_rimuovi_ricetta(char* line, Order_list_t* ready_list, Order_list_t* 
         printf("Errore: nome della ricetta mancante.\n");
         return;
     }
-    
+    char* recipe_name = (char*)malloc((strlen(token) + 1) * sizeof(char));
+    if(recipe_name == NULL) {
+        printf("Errore: allocazione memoria.\n");
+        return;
+    }
     strcpy(recipe_name, token);
-    recipe_name[MAX_RECIPE_NAME - 1] = '\0';
 
     // Eliminazione della ricetta
     Recipe_t* recipe_to_delete = search_hash_table_recipe(recipe_name);
+    free(recipe_name);
+
     if(recipe_to_delete == NULL) {
         printf("non presente\n");
     } else {
         if(search_list(waiting_list, recipe_to_delete->name) == NULL && search_list(ready_list, recipe_to_delete->name) == NULL) {
             delete_hash_table_recipe(recipe_to_delete->name);
+            free(recipe_to_delete->name);
             free(recipe_to_delete);
             printf("rimossa\n");
         } else {
             printf("ordini in sospeso\n");
         }
     }
-    
+
+    return;
 }
 
 void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
     char* token;
-    char recipe_name[MAX_RECIPE_NAME];
 
     // Salta il comando "ordine"
     token = strtok(line, " ");
@@ -781,17 +759,27 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
         printf("Errore: nome della ricetta mancante.\n");
         return;
     }
+    char* recipe_name = (char*)malloc((strlen(token) + 1) * sizeof(char));
+    if(recipe_name == NULL) {
+        printf("Errore: allocazione memoria.\n");
+        return;
+    }
     strcpy(recipe_name, token);
-    recipe_name[MAX_RECIPE_NAME - 1] = '\0';
 
     // Controllo ricetta esista
     Recipe_t* recipe = search_hash_table_recipe(recipe_name);
+    free(recipe_name);
+
     if(recipe == NULL) {
         printf("rifiutato\n");
         return;
     }
 
     Order_t* new_order = (Order_t*)malloc(sizeof(Order_t));
+    if(new_order == NULL) {
+        printf("Errore: allocazione memoria.\n");
+        return;
+    }
     new_order->recipe = recipe;
 
     // Lettura quantita' di elementi della ricetta da ordinare
@@ -812,6 +800,7 @@ void manage_ordine(char* line, int day, Order_list_t* ready_orders, Order_list_t
         // aggiornamento lista waiting
         add_order_list(waiting_orders, new_order);
     }
+    
     printf("accettato\n");
 }
 
@@ -827,14 +816,17 @@ void manage_rifornimento(char* line, int day, Order_list_t* ready_orders, Order_
     
     // Lettura dell'ingrediente, della quantita' da rifornire e della scadenza
     while ((token = strtok(NULL, " ")) != NULL) {
-        char ingredient_name[MAX_INGREDIENT_NAME];
-
+        char* ingredient_name = (char*)malloc((strlen(token) + 1) * sizeof(char));
+        if(ingredient_name == NULL) {
+            printf("Errore: allocazione memoria.\n");
+            return;
+        }
         strcpy(ingredient_name, token);
-        ingredient_name[MAX_INGREDIENT_NAME - 1] = '\0';
 
         token = strtok(NULL, " ");
         if(token == NULL) {
             printf("Errore: quantità dell'ingrediente '%s' mancante.\n", ingredient_name);
+            free(ingredient_name);
             return;
         }
         int quantity = atoi(token);
@@ -842,6 +834,7 @@ void manage_rifornimento(char* line, int day, Order_list_t* ready_orders, Order_
         token = strtok(NULL, " ");
         if(token == NULL) {
             printf("Errore: scadenza dell'ingrediente '%s' mancante.\n", ingredient_name);
+            free(ingredient_name);
             return;
         }
         int expiring_date = atoi(token);
@@ -853,7 +846,7 @@ void manage_rifornimento(char* line, int day, Order_list_t* ready_orders, Order_
 }
 
 void manage_line(char* line, int day, Order_list_t* ready_orders, Order_list_t* waiting_orders) {
-    char* command;
+    char command[MAX_COMMAND_LENGTH];
 
     if(sscanf(line, "%s", command) != 1) {
         printf("Errore: lettura del comando\n");
@@ -888,20 +881,16 @@ int main() {
 
     // Lettura della periodicità d'arrivo e lettura dello spazio a disposizione del camioncino
     int arrive_time, capacity;
-    char extra;
-    if(fscanf(stdin, "%d %d", &arrive_time, &capacity) != 2) {
+    if(fscanf(stdin, "%d %d\n", &arrive_time, &capacity) != 2) {
         printf("Errore: input stdin mancanti o periodicita\' o capienza\n");
         return 1;
-    } else {
-        // Consumo resto della linea
-        while((extra = fgetc(stdin) != '\n') && extra != EOF);
     }
 
     // Lettura dei comandi e loro gestione
     char* line = NULL;
     size_t len = 0;
     int day = 0;
-    while(fgets(&line, &len, stdin) != -1) {
+    while(getline(&line, &len, stdin) != -1) {
         // Controllo del camioncino
         if(day % arrive_time == 0 && day != 0 && arrive_time != 0) {
             load_lorry(&ready_orders, capacity);
@@ -929,11 +918,6 @@ int main() {
 
     // Pulizia del camioncino
     free_lorry();
-
-    // Pulizia generale
-    free_hash_table_recipe();
-    free_hash_table_warehouse();
-    free_orders(&ready_orders, &waiting_orders);
 
     return 0;
 }
