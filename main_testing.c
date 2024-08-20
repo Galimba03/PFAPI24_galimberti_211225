@@ -18,14 +18,14 @@
 // Strutture per le ricette e gli ingredienti che le contengono
 typedef struct ingredient_recipe {
     char name[LENGHT_NAME];
-    int quantity;
+    unsigned short int quantity;
 
     struct ingredient_recipe* next;
 } Ingredient_recipe_t;
 
 typedef struct recipe {
     char name[LENGHT_NAME];
-    int weight;
+    unsigned short int weight;
 
     Ingredient_recipe_t* head;
     struct recipe* next;
@@ -33,7 +33,7 @@ typedef struct recipe {
 
 typedef struct order{
     Recipe_t* recipe;
-    int quantity;
+    unsigned short int quantity;
     int day_of_arrive;
 
     struct order* prev;
@@ -48,7 +48,7 @@ typedef struct {
 
 // Struttura per il magazzino e i lotti
 typedef struct expiring {
-    int quantity;
+    unsigned short int quantity;
     int expiring_date;
 
     struct expiring* next;
@@ -66,6 +66,7 @@ typedef struct ingredient_warehouse {
 // Struttura per il camioncino
 typedef struct {
     Order_t** orders;
+    // to delete
     int size;
     int capacity;
 } Lorry_t;
@@ -79,7 +80,7 @@ Lorry_t lorry;
     Returns:
         unit32_t = indice in cui verra' posizionato il valore nella tabella di hash
 */
-uint32_t hash_function(char* name, int hash_table_dim) {
+uint32_t hash_function(char* name, unsigned short int hash_table_dim) {
     uint32_t hash_value = 5381;
     uint8_t c;
     while ((c = *name++))
@@ -96,7 +97,7 @@ Recipe_t* hash_table_recipe[RP_TABLE_SIZE];
     Funzione che inizializza la tabella di hash delle ricette
 */
 void init_hash_table_recipe() {
-    for(int i = 0; i < RP_TABLE_SIZE; i++){
+    for(unsigned short int i = 0; i < RP_TABLE_SIZE; i++){
         hash_table_recipe[i] = NULL;
     }
 }
@@ -112,7 +113,7 @@ bool add_hash_table_recipe(Recipe_t* recipe) {
         return true;
     }
 
-    int index = hash_function(recipe->name, RP_TABLE_SIZE);
+    unsigned short int index = hash_function(recipe->name, RP_TABLE_SIZE);
     recipe->next = hash_table_recipe[index];
     hash_table_recipe[index] = recipe;
     return false;
@@ -125,7 +126,7 @@ bool add_hash_table_recipe(Recipe_t* recipe) {
                         ricetta, se trovata
 */
 Recipe_t* search_hash_table_recipe(char* recipe_name) {
-    int index = hash_function(recipe_name, RP_TABLE_SIZE);
+    unsigned short int index = hash_function(recipe_name, RP_TABLE_SIZE);
     Recipe_t* temp = hash_table_recipe[index];
 
     while(temp != NULL && strncmp(temp->name, recipe_name, MAX_RECIPE_NAME) != 0) {
@@ -142,7 +143,7 @@ Recipe_t* search_hash_table_recipe(char* recipe_name) {
                         ricetta, se eliminata dalla tabella
 */
 Recipe_t* delete_hash_table_recipe(char* recipe_name) {
-    int index = hash_function(recipe_name, RP_TABLE_SIZE);
+    unsigned short int index = hash_function(recipe_name, RP_TABLE_SIZE);
     Recipe_t* temp = hash_table_recipe[index];
     Recipe_t* prev = NULL;
 
@@ -174,7 +175,7 @@ Ingredient_warehouse_t* hash_table_warehouse[WH_TABLE_SIZE];
     Funzione che inizializza la tabella di hash del magazzino
 */
 void init_hash_table_warehouse() {
-    for(int i = 0; i < WH_TABLE_SIZE; i++){
+    for(unsigned short int i = 0; i < WH_TABLE_SIZE; i++){
         hash_table_warehouse[i] = NULL;
     }
 }
@@ -185,7 +186,7 @@ void init_hash_table_warehouse() {
         - false -> no errors
         - true -> errors
 */
-bool update_and_add_hash_table_warehouse(char* ingredient_name, int quantity, int expiring_date, int day) {
+bool update_and_add_hash_table_warehouse(char* ingredient_name, unsigned short int quantity, int expiring_date, int day) {
     if(quantity <= 0 || expiring_date < 0) {
         return true;
     }
@@ -303,7 +304,7 @@ bool check_warehouse(Order_t* order, int day) {
     Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
 
     while(recipe_ingredient != NULL) {
-        int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
+        unsigned short int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
         Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
 
         while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
@@ -377,7 +378,7 @@ bool time_to_cook(Order_t* order, int day) {
     Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
     // Finché gli ingredienti della ricetta non son finiti...
     while(recipe_ingredient != NULL) {
-        int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
+        unsigned short int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
         Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
 
         while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
@@ -609,7 +610,7 @@ void free_lorry() {
 /*
     Funzione per il caricamento del camioncino
 */
-void load_lorry(Order_list_t* ready_list, int lorry_space) {
+void load_lorry(Order_list_t* ready_list, unsigned short int lorry_space) {
     Order_t* current_order = ready_list->head;
 
     while(current_order != NULL) {
@@ -639,10 +640,10 @@ void load_lorry(Order_list_t* ready_list, int lorry_space) {
 /*
     Insertion sort per riordinare gli elementi del camioncino in ordine di peso
 */
-void insertion_sort_weight(Order_t* orders[], int n) {
-    for(int i = 1; i < n; i++) {
+void insertion_sort_weight(Order_t* orders[], unsigned short int n) {
+    for(unsigned short int i = 1; i < n; i++) {
         Order_t* key = orders[i];
-        int j = i-1;
+        unsigned short int j = i-1;
 
         while(j >= 0 && (orders[j]->recipe->weight * orders[j]->quantity) < (key->recipe->weight * key->quantity)) {
             orders[j+1] = orders[j];
@@ -663,13 +664,13 @@ void print_lorry() {
         insertion_sort_weight(lorry.orders, lorry.size);
 
         // Stampa gli ordini
-        for (int i = 0; i < lorry.size; i++) {
+        for (unsigned short int i = 0; i < lorry.size; i++) {
             Order_t* order = lorry.orders[i];
             printf("%d %s %d\n", order->day_of_arrive, order->recipe->name, order->quantity);
         }
 
         // Pulizia della memoria
-        for (int i = 0; i < lorry.size; i++) {
+        for (unsigned short int i = 0; i < lorry.size; i++) {
             free(lorry.orders[i]);
         }
 
@@ -684,7 +685,7 @@ void print_lorry() {
 /*
     Funzione che inserisce nella ricetta un nuovo ingrediente. Gestisce correttamente la lista
 */
-void add_ingredient_recipe(Recipe_t* recipe, char* name, int quantity) {
+void add_ingredient_recipe(Recipe_t* recipe, char* name, unsigned short int quantity) {
     Ingredient_recipe_t* ingredient = (Ingredient_recipe_t*)malloc(sizeof(Ingredient_recipe_t));
     if(ingredient == NULL){
         printf("Errore: errata allocazione memoria.\n");
@@ -754,7 +755,7 @@ void manage_aggiungi_ricetta(char* line) {
             free(new_recipe);
             return;
         }
-        int quantity = atoi(token);
+        unsigned short int quantity = atoi(token);
 
         add_ingredient_recipe(new_recipe, ingredient_name, quantity);
         new_recipe->weight += quantity;
