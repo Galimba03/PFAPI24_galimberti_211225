@@ -690,6 +690,11 @@ void print_lorry() {
 */
 void add_ingredient_recipe(Recipe_t* recipe, char* name, int quantity) {
     Ingredient_recipe_t* ingredient = (Ingredient_recipe_t*)malloc(sizeof(Ingredient_recipe_t));
+    if(ingredient == NULL) {
+        printf("Errore: errata allocazione memoria.\n");
+        return;
+    }
+
     ingredient->name = (char*)malloc((strlen(name) + 1) * sizeof(char));
     if(ingredient->name == NULL){
         printf("Errore: errata allocazione memoria.\n");
