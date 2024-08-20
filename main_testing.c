@@ -9,9 +9,6 @@
 
 #define LENGHT_NAME 23
 
-#define MAX_INGREDIENT_NAME 255
-#define MAX_RECIPE_NAME 255
-
 #define RP_TABLE_SIZE 50
 #define WH_TABLE_SIZE 100
 
@@ -129,7 +126,7 @@ Recipe_t* search_hash_table_recipe(char* recipe_name) {
     unsigned short int index = hash_function(recipe_name, RP_TABLE_SIZE);
     Recipe_t* temp = hash_table_recipe[index];
 
-    while(temp != NULL && strncmp(temp->name, recipe_name, MAX_RECIPE_NAME) != 0) {
+    while(temp != NULL && strcmp(temp->name, recipe_name) != 0) {
         temp = temp->next;
     }
 
@@ -147,7 +144,7 @@ Recipe_t* delete_hash_table_recipe(char* recipe_name) {
     Recipe_t* temp = hash_table_recipe[index];
     Recipe_t* prev = NULL;
 
-    while(temp != NULL && strncmp(temp->name, recipe_name, MAX_RECIPE_NAME) != 0) {
+    while(temp != NULL && strcmp(temp->name, recipe_name) != 0) {
         prev = temp; 
         temp = temp->next;
     }
@@ -194,7 +191,7 @@ bool update_and_add_hash_table_warehouse(char* ingredient_name, unsigned short i
     int index = hash_function(ingredient_name, WH_TABLE_SIZE);
     Ingredient_warehouse_t* scroller = hash_table_warehouse[index];
 
-    while(scroller != NULL && strncmp(scroller->name, ingredient_name, MAX_INGREDIENT_NAME) != 0) {
+    while(scroller != NULL && strcmp(scroller->name, ingredient_name) != 0) {
         scroller = scroller->next;
     }
 
@@ -307,7 +304,7 @@ bool check_warehouse(Order_t* order, int day) {
         unsigned short int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
         Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
 
-        while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
+        while(warehouse_ingredient != NULL && strcmp(warehouse_ingredient->name, recipe_ingredient->name) != 0) {
             warehouse_ingredient = warehouse_ingredient->next;
         }
 
@@ -381,7 +378,7 @@ bool time_to_cook(Order_t* order, int day) {
         unsigned short int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
         Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
 
-        while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
+        while(warehouse_ingredient != NULL && strcmp(warehouse_ingredient->name, recipe_ingredient->name) != 0) {
             warehouse_ingredient = warehouse_ingredient->next;
         }
 
@@ -497,7 +494,7 @@ void add_order_list(Order_list_t* list, Order_t* order) {
 Order_t* search_list(Order_list_t* list, char* recipe_name) {
     Order_t* order_scroller = list->head;
 
-    while(order_scroller != NULL && strncmp(order_scroller->recipe->name, recipe_name, MAX_RECIPE_NAME) != 0) {
+    while(order_scroller != NULL && strcmp(order_scroller->recipe->name, recipe_name) != 0) {
         order_scroller = order_scroller->next;
     }
 
