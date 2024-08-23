@@ -747,13 +747,8 @@ void add_ingredient_recipe(Recipe_t* recipe, char* name, int quantity) {
     if(recipe->head == NULL) {
         recipe->head = ingredient;
     } else {
-        // Scorrimento e posizionamento in fondo alla lista ?!?
-        // TOFIX:
-        Ingredient_recipe_t* scroller = recipe->head;
-        while(scroller->next != NULL) {
-            scroller = scroller->next;
-        }
-        scroller->next = ingredient;
+        ingredient->next = recipe->head;
+        recipe->head = ingredient;
     }
 
     return;
