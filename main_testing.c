@@ -843,8 +843,8 @@ void manage_aggiungi_ricetta(char* line) {
     }
     
     // Lettura degli ingredienti e delle loro quantità
+    char ingredient_name[LENGTH_NAME];
     while((token = strtok(NULL, " ")) != NULL) {
-        char ingredient_name[LENGTH_NAME];
         strcpy(ingredient_name, token);
 
         token = strtok(NULL, " ");

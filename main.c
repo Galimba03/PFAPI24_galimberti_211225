@@ -13,9 +13,26 @@
 #define RP_TABLE_SIZE 50
 #define WH_TABLE_SIZE 100
 
+// Struttura per il magazzino e i lotti
+typedef struct expiring {
+    int quantity;
+    int expiring_date;
+
+    struct expiring* next;
+} Expiring_t;
+
+typedef struct ingredient_warehouse {
+    char *name;
+    int total_quantity;
+
+    Expiring_t* head;
+    Expiring_t* tail;
+    struct ingredient_warehouse* next;
+} Ingredient_warehouse_t;
+
 // Strutture per le ricette e gli ingredienti che le contengono
 typedef struct ingredient_recipe {
-    char *name;
+    Ingredient_warehouse_t* pointer_ingredient_warehouse;
     int quantity;
 
     struct ingredient_recipe* next;
@@ -43,23 +60,6 @@ typedef struct {
     Order_t* head;
     Order_t* tail;
 } Order_list_t;
-
-// Struttura per il magazzino e i lotti
-typedef struct expiring {
-    int quantity;
-    int expiring_date;
-
-    struct expiring* next;
-} Expiring_t;
-
-typedef struct ingredient_warehouse {
-    char *name;
-    int total_quantity;
-
-    Expiring_t* head;
-    Expiring_t* tail;
-    struct ingredient_warehouse* next;
-} Ingredient_warehouse_t;
 
 // Struttura per il camioncino
 typedef struct {
@@ -175,6 +175,65 @@ void init_hash_table_warehouse() {
     for(int i = 0; i < WH_TABLE_SIZE; i++){
         hash_table_warehouse[i] = NULL;
     }
+}
+
+/*
+    Funzione che aggiungi nel magazzino un elemento nuovo
+    Returns:
+        - Ingredient_warehouse_t*
+*/
+Ingredient_warehouse_t* add_hash_table_warehouse(char* ingredient_name, Ingredient_warehouse_t* previous) {
+    Ingredient_warehouse_t* new_ingredient_warehouse = (Ingredient_warehouse_t*)malloc(sizeof(Ingredient_warehouse_t));
+    if(new_ingredient_warehouse == NULL) {
+        printf("Errore: allocazione memoria.\n");
+        return NULL;
+    }
+
+    new_ingredient_warehouse->name = (char*)malloc((strlen(ingredient_name) + 1) * sizeof(char));
+    if(new_ingredient_warehouse->name == NULL) {
+        printf("Errore: allocazione memoria.\n");
+        free(new_ingredient_warehouse);
+        return NULL;
+    }
+
+    strcpy(new_ingredient_warehouse->name, ingredient_name);
+    new_ingredient_warehouse->total_quantity = 0;
+    new_ingredient_warehouse->head = NULL;
+    new_ingredient_warehouse->tail = NULL;
+    new_ingredient_warehouse->next = NULL;
+
+    if (previous != NULL) {
+        previous->next = new_ingredient_warehouse;
+    } else {
+        int index = hash_function(ingredient_name, WH_TABLE_SIZE);
+        hash_table_warehouse[index] = new_ingredient_warehouse;
+    }
+
+    return new_ingredient_warehouse;
+}
+
+/*
+    Funzione che cerca se nel magazzino è presente un ingrediente nel magazzino
+    Returns:
+        - NULL -> if not exists
+        - Ingredient_warehouse_t* -> if exists
+
+*/
+Ingredient_warehouse_t* search_hash_table_warehouse(char* ingredient_name) {
+    int index = hash_function(ingredient_name, WH_TABLE_SIZE);
+    Ingredient_warehouse_t* scroller = hash_table_warehouse[index];
+    Ingredient_warehouse_t* prev = NULL;
+
+    while(scroller != NULL && strncmp(scroller->name, ingredient_name, MAX_INGREDIENT_NAME) != 0) {
+        prev = scroller;
+        scroller = scroller->next;
+    }
+
+    if(scroller == NULL) {
+        scroller = add_hash_table_warehouse(ingredient_name, prev);
+    }
+    return scroller;
+
 }
 
 /*
@@ -307,19 +366,9 @@ bool check_warehouse(Order_t* order, int day) {
     Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
 
     while(recipe_ingredient != NULL) {
-        int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
-        Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
-
-        while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
-            warehouse_ingredient = warehouse_ingredient->next;
-        }
-
-        if (warehouse_ingredient == NULL) {
-            return false;
-        }
-
-        // Verificando se la quantità totale è sufficiente
-        if (warehouse_ingredient->total_quantity < recipe_ingredient->quantity * order->quantity) {
+        Ingredient_warehouse_t* warehouse_ingredient = recipe_ingredient->pointer_ingredient_warehouse;
+        
+        if(warehouse_ingredient->total_quantity < recipe_ingredient->quantity * order->quantity) {
             return false;
         }
 
@@ -381,16 +430,7 @@ bool time_to_cook(Order_t* order, int day) {
     Ingredient_recipe_t* recipe_ingredient = order->recipe->head;
     // Finché gli ingredienti della ricetta non son finiti...
     while(recipe_ingredient != NULL) {
-        int index = hash_function(recipe_ingredient->name, WH_TABLE_SIZE);
-        Ingredient_warehouse_t* warehouse_ingredient = hash_table_warehouse[index];
-
-        while(warehouse_ingredient != NULL && strncmp(warehouse_ingredient->name, recipe_ingredient->name, MAX_INGREDIENT_NAME) != 0) {
-            warehouse_ingredient = warehouse_ingredient->next;
-        }
-
-        if (warehouse_ingredient == NULL) {
-            return false;
-        }
+        Ingredient_warehouse_t* warehouse_ingredient = recipe_ingredient->pointer_ingredient_warehouse;
 
         // Verificando se la quantità totale è sufficiente
         if (warehouse_ingredient->total_quantity < recipe_ingredient->quantity * order->quantity) {
@@ -690,23 +730,25 @@ void print_lorry() {
 */
 void add_ingredient_recipe(Recipe_t* recipe, char* name, int quantity) {
     Ingredient_recipe_t* ingredient = (Ingredient_recipe_t*)malloc(sizeof(Ingredient_recipe_t));
-    if(ingredient == NULL) {
+    if(ingredient == NULL){
         printf("Errore: errata allocazione memoria.\n");
         return;
     }
-
-    ingredient->name = (char*)malloc((strlen(name) + 1) * sizeof(char));
-    if(ingredient->name == NULL){
-        printf("Errore: errata allocazione memoria.\n");
+    
+    ingredient->pointer_ingredient_warehouse = search_hash_table_warehouse(name);
+    if(ingredient->pointer_ingredient_warehouse == NULL) {
+        printf("Errore: errata creazione dell'ingrediente.\n");
+        free(ingredient);
         return;
     }
-    strcpy(ingredient->name, name);
     ingredient->quantity = quantity;
     ingredient->next = NULL;
 
     if(recipe->head == NULL) {
         recipe->head = ingredient;
     } else {
+        // Scorrimento e posizionamento in fondo alla lista ?!?
+        // TOFIX:
         Ingredient_recipe_t* scroller = recipe->head;
         while(scroller->next != NULL) {
             scroller = scroller->next;
