@@ -97,6 +97,27 @@ void init_hash_table_recipe() {
     for(int i = 0; i < RP_TABLE_SIZE; i++){
         hash_table_recipe[i] = NULL;
     }
+
+    return;
+}
+
+/*
+    Funzione che libera la tabella hash delle ricette
+*/
+void free_recipe() {
+    for(int i = 0; i < RP_TABLE_SIZE; i++) {
+        if(hash_table_recipe[i] != NULL) {
+            Recipe_t* scroller_recipe = hash_table_recipe[i];
+
+            while(scroller_recipe != NULL) {
+                Recipe_t* to_delete = scroller_recipe;
+                scroller_recipe = to_delete->next;
+                free(to_delete);
+            }
+        }
+    }
+
+    return;
 }
 
 /*
@@ -175,6 +196,27 @@ void init_hash_table_warehouse() {
     for(int i = 0; i < WH_TABLE_SIZE; i++){
         hash_table_warehouse[i] = NULL;
     }
+
+    return;
+}
+
+/*
+    Funzione che libera il magazzino
+*/
+void free_warehouse() {
+    for(int i = 0; i < WH_TABLE_SIZE; i++) {
+        if(hash_table_warehouse[i] != NULL) {
+            Ingredient_warehouse_t* scroller_warehouse = hash_table_warehouse[i];
+
+            while(scroller_warehouse != NULL) {
+                Ingredient_warehouse_t* to_delete = scroller_warehouse;
+                scroller_warehouse = to_delete->next;
+                free(to_delete);
+            }
+        }
+    }
+
+    return;
 }
 
 /*
@@ -984,6 +1026,7 @@ void manage_rifornimento(char* line, int day, Order_list_t* ready_orders, Order_
         int expiring_date = atoi(token);
 
         update_and_add_hash_table_warehouse(ingredient_name, quantity, expiring_date, day);
+        free(ingredient_name);
     }
     printf("rifornito\n");
     cook_waiting(ready_orders, waiting_orders, day);
@@ -1065,6 +1108,10 @@ int main() {
 
     // Pulizia del camioncino
     free_lorry();
+
+    // Pulizia delle strutture
+    free_warehouse();
+    free_recipe();
 
     return 0;
 }
