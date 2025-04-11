@@ -22,5 +22,5 @@ gcc main.c -o output
 ```
 Make sure you have a C compiler like gcc installed on your system.
 
-##License
+## License
 This project is open-source and free to use for educational purposes.
